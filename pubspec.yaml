@@ -21,4 +21,11 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   assets:
-    - assets/picture/genshin.png  # 確保路徑正確
+    - assets/picture/login.png
+    - assets/picture/register.png
+    - assets/picture/home.png
+    - assets/picture/diary.jpg
+    - assets/picture/recommendation.jpg
+    - assets/picture/chatbot.png
+    - assets/picture/breathing.jpg
+    - assets/picture/setting.jpg

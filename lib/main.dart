@@ -1,10 +1,12 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart'; //引用material的設計套件
 
 void main() {
   runApp(SmailyApp());
 }
 
 class SmailyApp extends StatelessWidget {
+  const SmailyApp({super.key});
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -28,6 +30,8 @@ class SmailyApp extends StatelessWidget {
 
 // ===== 登入頁面 (Use Case 1: 註冊與登入) =====
 class LoginScreen extends StatelessWidget {
+  const LoginScreen({super.key});
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -59,6 +63,8 @@ class LoginScreen extends StatelessWidget {
 
 // ===== 註冊頁面 =====
 class RegisterScreen extends StatelessWidget {
+  const RegisterScreen({super.key});
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -84,6 +90,8 @@ class RegisterScreen extends StatelessWidget {
 
 // ===== 主畫面 =====
 class HomeScreen extends StatelessWidget {
+  const HomeScreen({super.key});
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -133,6 +141,8 @@ class HomeScreen extends StatelessWidget {
 
 // ===== 日記頁面 (Use Case 2) =====
 class DiaryScreen extends StatelessWidget {
+  const DiaryScreen({super.key});
+
   @override
   Widget build(BuildContext context) {
     // 此頁面引導使用者回答問題並記錄日記
@@ -164,6 +174,8 @@ class DiaryScreen extends StatelessWidget {
 
 // ===== 精油與練習推薦頁面 (Use Case 3) =====
 class RecommendationScreen extends StatelessWidget {
+  const RecommendationScreen({super.key});
+
   @override
   Widget build(BuildContext context) {
     // 根據日記內容，由 AI 分析推薦精油與相關練習
@@ -190,6 +202,8 @@ class RecommendationScreen extends StatelessWidget {
 
 // ===== 聊天機器人頁面 (Use Case 5) =====
 class ChatbotScreen extends StatelessWidget {
+  const ChatbotScreen({super.key});
+
   @override
   Widget build(BuildContext context) {
     // 聊天介面，可搭配對話機器人 API
@@ -230,6 +244,8 @@ class ChatbotScreen extends StatelessWidget {
 
 // ===== 呼吸練習頁面 (Use Case 6) =====
 class BreathingScreen extends StatelessWidget {
+  const BreathingScreen({super.key});
+
   @override
   Widget build(BuildContext context) {
     // 提供不同的呼吸練習選項與視覺化指引
@@ -261,6 +277,8 @@ class BreathingScreen extends StatelessWidget {
 
 // ===== 設定與個人化頁面 (Use Case 7) =====
 class SettingsScreen extends StatelessWidget {
+  const SettingsScreen({super.key});
+
   @override
   Widget build(BuildContext context) {
     // 可設定每日提醒、主題、個人化偏好等

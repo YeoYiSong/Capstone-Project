@@ -12,6 +12,7 @@ dependencies:
     sdk: flutter
   cupertino_icons: ^1.0.8
   url_launcher: ^6.0.9  # 確保只有一個 dependencies 區塊
+  google_fonts: ^6.2.1
 
 dev_dependencies:
   flutter_test:
@@ -29,3 +30,7 @@ flutter:
     - assets/picture/chatbot.png
     - assets/picture/breathing.jpg
     - assets/picture/setting.jpg
+    - assets/icons/apple.png
+    - assets/icons/fb.png
+    - assets/icons/google.png
+    - assets/icons/gmail.jpg

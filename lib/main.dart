@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart'; //引用material的設計套件
 
 void main() {
-  runApp(SmailyApp());
+  runApp(Smaily2App());
 }
 
-class SmailyApp extends StatelessWidget {
-  const SmailyApp({super.key});
+class Smaily2App extends StatelessWidget {
+  const Smaily2App({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -15,7 +15,8 @@ class SmailyApp extends StatelessWidget {
       // 根據 Use Case 文件規劃路由
       initialRoute: '/',
       routes: {
-        '/': (context) => LoginScreen(),
+        '/': (context) => StartScreen(),
+        '/login': (context) => LoginScreen(),
         '/register': (context) => RegisterScreen(),
         '/home': (context) => HomeScreen(),
         '/diary': (context) => DiaryScreen(),
@@ -28,6 +29,97 @@ class SmailyApp extends StatelessWidget {
   }
 }
 
+class StartScreen extends StatelessWidget {
+  const StartScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Stack(
+        children: [
+          // 📌 背景裝飾
+          Positioned.fill(
+            child: Container(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    Color.fromARGB(255, 39, 1, 177),
+                    Colors.white,
+                  ], // 深藍色背景
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                ),
+              ),
+            ),
+          ),
+
+          // 📌 主內容
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 80),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Spacer(),
+
+                // 📌 標語
+                const Text(
+                  "感受當下，\n療癒每一刻。",
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87,
+                  ),
+                ),
+
+                const SizedBox(height: 40),
+
+                // 📌 APP 名稱
+                const Text(
+                  "Smaily",
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.black54,
+                  ),
+                ),
+
+                const SizedBox(height: 20),
+
+                // 📌 "Go" 圓形按鈕
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: GestureDetector(
+                    onTap: () {
+                      Navigator.pushReplacementNamed(context, '/login');
+                    },
+                    child: Container(
+                      width: 80,
+                      height: 80,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.black54, width: 2),
+                      ),
+                      child: const Center(
+                        child: Icon(
+                          Icons.arrow_forward,
+                          size: 32,
+                          color: Colors.black87,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 40),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 // ===== 登入頁面 (Use Case 1: 註冊與登入) =====
 class LoginScreen extends StatelessWidget {
   const LoginScreen({super.key});
@@ -35,34 +127,125 @@ class LoginScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('登入')),
-      body: Container(
-        decoration: BoxDecoration(
-          image: DecorationImage(
-            image: AssetImage('assets/picture/login.png'),
-            fit: BoxFit.cover,
-          ),
-        ),
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text('登入表單'),
-              ElevatedButton(
+      body: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            const Text(
+              "Smaily 2",
+              style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 40),
+
+            // 📌 輸入框：帳號
+            TextField(
+              decoration: InputDecoration(
+                hintText: "Phone, user name or email",
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                filled: true,
+                fillColor: Colors.grey[200],
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // 📌 輸入框：密碼
+            TextField(
+              obscureText: true,
+              decoration: InputDecoration(
+                hintText: "Password",
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                filled: true,
+                fillColor: Colors.grey[200],
+              ),
+            ),
+            const SizedBox(height: 8),
+
+            // 📌 忘記密碼
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: () {},
+                child: const Text("Forget password?"),
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // 📌 按鈕：登入
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: ElevatedButton(
                 onPressed: () {
-                  // 模擬登入成功後導向主畫面
                   Navigator.pushReplacementNamed(context, '/home');
                 },
-                child: Text('登入'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blue, // 按鈕顏色
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                child: const Text(
+                  "Log In",
+                  style: TextStyle(fontSize: 18, color: Colors.white),
+                ),
               ),
-              TextButton(
-                onPressed: () {
-                  Navigator.pushNamed(context, '/register');
-                },
-                child: Text('還沒有帳號？註冊'),
-              ),
-            ],
-          ),
+            ),
+            const SizedBox(height: 20),
+
+            // 📌 分隔線
+            Row(
+              children: [
+                Expanded(child: Divider(thickness: 1)),
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 10),
+                  child: Text("or"),
+                ),
+                Expanded(child: Divider(thickness: 1)),
+              ],
+            ),
+            const SizedBox(height: 10),
+
+            // 📌 註冊按鈕
+            TextButton(
+              onPressed: () {
+                Navigator.pushNamed(context, '/register');
+              },
+              child: const Text("Sign Up"),
+            ),
+            const SizedBox(height: 10),
+
+            // 📌 快速登入（Facebook, Apple, Gmail）
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                IconButton(
+                  onPressed: () {},
+                  icon: Image.asset("assets/icons/fb.png", width: 40),
+                ),
+                const SizedBox(width: 20),
+                IconButton(
+                  onPressed: () {},
+                  icon: Image.asset("assets/icons/apple.png", width: 40),
+                ),
+                const SizedBox(width: 20),
+                IconButton(
+                  onPressed: () {},
+                  icon: Image.asset("assets/icons/google.png", width: 40),
+                ),
+                const SizedBox(width: 20),
+                IconButton(
+                  onPressed: () {},
+                  icon: Image.asset("assets/icons/gmail.jpg", width: 40),
+                ),
+              ],
+            ),
+          ],
         ),
       ),
     );
@@ -165,7 +348,6 @@ class HomeScreen extends StatelessWidget {
 // ===== 日記頁面 (Use Case 2) =====
 class DiaryScreen extends StatelessWidget {
   const DiaryScreen({super.key});
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -256,7 +438,7 @@ class ChatbotScreen extends StatelessWidget {
           children: [
             Expanded(
               child: Container(
-                color: Colors.grey[200]!.withOpacity(0.5), // 设置半透明的背景色
+                color: Colors.grey[200]!.withValues(alpha: 0.5), // 设置半透明的背景色
                 child: Center(child: Text('聊天記錄')),
               ),
             ),

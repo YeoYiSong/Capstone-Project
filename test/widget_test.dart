@@ -3,7 +3,7 @@ import 'package:flutter_application_1/main.dart'; // 修改這裡指向正確的
 
 void main() {
   testWidgets('smaily app smoke test', (WidgetTester tester) async {
-    await tester.pumpWidget(SmailyApp()); // 使用正確的 Widget 名稱
-    expect(find.byType(SmailyApp), findsOneWidget);
+    await tester.pumpWidget(Smaily2App()); // 使用正確的 Widget 名稱
+    expect(find.byType(Smaily2App), findsOneWidget);
   });
 }

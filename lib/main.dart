@@ -1,7 +1,7 @@
-import 'package:flutter/material.dart'; //引用material的設計套件
+import 'package:flutter/material.dart';
 
 void main() {
-  runApp(Smaily2App());
+  runApp(const Smaily2App());
 }
 
 class Smaily2App extends StatelessWidget {
@@ -12,23 +12,26 @@ class Smaily2App extends StatelessWidget {
     return MaterialApp(
       title: 'Smaily',
       theme: ThemeData(primarySwatch: Colors.blue),
-      // 根據 Use Case 文件規劃路由
       initialRoute: '/',
       routes: {
-        '/': (context) => StartScreen(),
-        '/login': (context) => LoginScreen(),
-        '/register': (context) => RegisterScreen(),
-        '/home': (context) => HomeScreen(),
-        '/diary': (context) => DiaryScreen(),
-        '/recommendation': (context) => RecommendationScreen(),
-        '/chatbot': (context) => ChatbotScreen(),
-        '/breathing': (context) => BreathingScreen(),
-        '/settings': (context) => SettingsScreen(),
+        '/': (context) => const StartScreen(),
+        '/login': (context) => const LoginScreen(),
+        '/register': (context) => const RegisterScreen(),
+        '/home':
+            (context) => const HomeScreen(username: 'jiuke'), // 假設用戶名為 jiuke
+        '/diary': (context) => const DiaryScreen(),
+        '/recommendation': (context) => const RecommendationScreen(),
+        '/chatbot': (context) => const ChatbotScreen(),
+        '/breathing': (context) => const BreathingScreen(),
+        '/settings': (context) => const SettingsScreen(),
+        '/diary_review': (context) => const DiaryReviewScreen(), // 新增日記回顧頁面
+        '/store': (context) => const StoreScreen(), // 新增 Store 頁面
       },
     );
   }
 }
 
+// ===== 啟動畫面 =====
 class StartScreen extends StatelessWidget {
   const StartScreen({super.key});
 
@@ -37,31 +40,23 @@ class StartScreen extends StatelessWidget {
     return Scaffold(
       body: Stack(
         children: [
-          // 📌 背景裝飾
           Positioned.fill(
             child: Container(
               decoration: const BoxDecoration(
                 gradient: LinearGradient(
-                  colors: [
-                    Color.fromARGB(255, 39, 1, 177),
-                    Colors.white,
-                  ], // 深藍色背景
+                  colors: [Color.fromARGB(255, 39, 1, 177), Colors.white],
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                 ),
               ),
             ),
           ),
-
-          // 📌 主內容
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 80),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Spacer(),
-
-                // 📌 標語
                 const Text(
                   "感受當下，\n療癒每一刻。",
                   style: TextStyle(
@@ -70,10 +65,7 @@ class StartScreen extends StatelessWidget {
                     color: Colors.black87,
                   ),
                 ),
-
                 const SizedBox(height: 40),
-
-                // 📌 APP 名稱
                 const Text(
                   "Smaily",
                   style: TextStyle(
@@ -82,10 +74,7 @@ class StartScreen extends StatelessWidget {
                     color: Colors.black54,
                   ),
                 ),
-
                 const SizedBox(height: 20),
-
-                // 📌 "Go" 圓形按鈕
                 Align(
                   alignment: Alignment.centerRight,
                   child: GestureDetector(
@@ -109,7 +98,6 @@ class StartScreen extends StatelessWidget {
                     ),
                   ),
                 ),
-
                 const SizedBox(height: 40),
               ],
             ),
@@ -120,7 +108,7 @@ class StartScreen extends StatelessWidget {
   }
 }
 
-// ===== 登入頁面 (Use Case 1: 註冊與登入) =====
+// ===== 登入頁面 =====
 class LoginScreen extends StatelessWidget {
   const LoginScreen({super.key});
 
@@ -138,8 +126,6 @@ class LoginScreen extends StatelessWidget {
               style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 40),
-
-            // 📌 輸入框：帳號
             TextField(
               decoration: InputDecoration(
                 hintText: "Phone, user name or email",
@@ -151,8 +137,6 @@ class LoginScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 16),
-
-            // 📌 輸入框：密碼
             TextField(
               obscureText: true,
               decoration: InputDecoration(
@@ -165,8 +149,6 @@ class LoginScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 8),
-
-            // 📌 忘記密碼
             Align(
               alignment: Alignment.centerRight,
               child: TextButton(
@@ -175,17 +157,20 @@ class LoginScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 16),
-
-            // 📌 按鈕：登入
             SizedBox(
               width: double.infinity,
               height: 50,
               child: ElevatedButton(
                 onPressed: () {
-                  Navigator.pushReplacementNamed(context, '/home');
+                  // 假設登入成功，傳遞用戶名到主畫面
+                  Navigator.pushReplacementNamed(
+                    context,
+                    '/home',
+                    arguments: 'jiuke',
+                  );
                 },
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blue, // 按鈕顏色
+                  backgroundColor: Colors.blue,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
@@ -197,8 +182,6 @@ class LoginScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 20),
-
-            // 📌 分隔線
             Row(
               children: [
                 Expanded(child: Divider(thickness: 1)),
@@ -210,8 +193,6 @@ class LoginScreen extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 10),
-
-            // 📌 註冊按鈕
             TextButton(
               onPressed: () {
                 Navigator.pushNamed(context, '/register');
@@ -219,8 +200,6 @@ class LoginScreen extends StatelessWidget {
               child: const Text("Sign Up"),
             ),
             const SizedBox(height: 10),
-
-            // 📌 快速登入（Facebook, Apple, Gmail）
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -259,7 +238,7 @@ class RegisterScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('註冊')),
+      appBar: AppBar(title: const Text('註冊')),
       body: Container(
         decoration: BoxDecoration(
           image: DecorationImage(
@@ -271,13 +250,17 @@ class RegisterScreen extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Text('註冊表單 (Email、密碼、Google/Apple 快速登入)'),
+              const Text('註冊表單 (Email、密碼、Google/Apple 快速登入)'),
               ElevatedButton(
                 onPressed: () {
                   // 註冊成功後導向主畫面
-                  Navigator.pushReplacementNamed(context, '/home');
+                  Navigator.pushReplacementNamed(
+                    context,
+                    '/home',
+                    arguments: 'jiuke',
+                  );
                 },
-                child: Text('註冊'),
+                child: const Text('註冊'),
               ),
             ],
           ),
@@ -289,16 +272,18 @@ class RegisterScreen extends StatelessWidget {
 
 // ===== 主畫面 =====
 class HomeScreen extends StatelessWidget {
-  const HomeScreen({super.key});
+  final String username;
+
+  const HomeScreen({super.key, required this.username});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Smaily 2 主畫面'),
+        title: const Text('Smaily 2 主畫面'),
         actions: [
           IconButton(
-            icon: Icon(Icons.settings),
+            icon: const Icon(Icons.settings),
             onPressed: () {
               Navigator.pushNamed(context, '/settings');
             },
@@ -312,46 +297,147 @@ class HomeScreen extends StatelessWidget {
             fit: BoxFit.cover,
           ),
         ),
-        child: ListView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            ListTile(
-              title: Text('我的一天 (日記)'),
-              onTap: () {
-                Navigator.pushNamed(context, '/diary');
-              },
+            // 左上角問候語
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Text(
+                '早安，$username！',
+                style: const TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
+              ),
             ),
-            ListTile(
-              title: Text('精油與練習推薦'),
-              onTap: () {
-                Navigator.pushNamed(context, '/recommendation');
-              },
+            const Spacer(), // 將下方內容推到頁面底部
+            // 第一個位置：四個圓形按鈕
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  _buildCircleButton(context, '我的一天', Icons.book, '/diary'),
+                  _buildCircleButton(
+                    context,
+                    '呼吸',
+                    Icons.self_improvement,
+                    '/breathing',
+                  ),
+                  _buildCircleButton(
+                    context,
+                    'Smaily AI',
+                    Icons.chat,
+                    '/chatbot',
+                  ),
+                  _buildCircleButton(
+                    context,
+                    '本子',
+                    Icons.history,
+                    '/diary_review',
+                  ),
+                ],
+              ),
             ),
-            ListTile(
-              title: Text('聊天機器人'),
-              onTap: () {
-                Navigator.pushNamed(context, '/chatbot');
-              },
-            ),
-            ListTile(
-              title: Text('呼吸練習'),
-              onTap: () {
-                Navigator.pushNamed(context, '/breathing');
-              },
+            const SizedBox(height: 20),
+
+            // 第二個位置：三個按鈕
+            Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 16.0,
+                vertical: 16.0,
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  _buildBottomButton(context, '首頁', Icons.home, '/home'),
+                  _buildBottomButton(context, 'Store', Icons.store, '/store'),
+                  _buildBottomButton(
+                    context,
+                    '設定',
+                    Icons.settings,
+                    '/settings',
+                  ),
+                ],
+              ),
             ),
           ],
         ),
       ),
     );
   }
+
+  // 圓形按鈕組件
+  Widget _buildCircleButton(
+    BuildContext context,
+    String label,
+    IconData icon,
+    String route,
+  ) {
+    return GestureDetector(
+      onTap: () {
+        Navigator.pushNamed(context, route);
+      },
+      child: Column(
+        children: [
+          Container(
+            width: 60,
+            height: 60,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: Colors.blue.withValues(alpha: 0.8),
+              border: Border.all(color: Colors.black54, width: 2),
+            ),
+            child: Center(child: Icon(icon, size: 32, color: Colors.white)),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            label,
+            style: const TextStyle(fontSize: 14, color: Colors.black87),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // 底部按鈕組件
+  Widget _buildBottomButton(
+    BuildContext context,
+    String label,
+    IconData icon,
+    String route,
+  ) {
+    return ElevatedButton(
+      onPressed: () {
+        Navigator.pushNamed(context, route);
+      },
+      style: ElevatedButton.styleFrom(
+        backgroundColor: Colors.blue,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: Colors.white),
+          const SizedBox(width: 8),
+          Text(label, style: const TextStyle(color: Colors.white)),
+        ],
+      ),
+    );
+  }
 }
 
-// ===== 日記頁面 (Use Case 2) =====
+// ===== 日記頁面 =====
 class DiaryScreen extends StatelessWidget {
   const DiaryScreen({super.key});
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('我的一天')),
+      appBar: AppBar(title: const Text('我的一天')),
       body: Container(
         decoration: BoxDecoration(
           image: DecorationImage(
@@ -363,18 +449,18 @@ class DiaryScreen extends StatelessWidget {
           padding: const EdgeInsets.all(16.0),
           child: Column(
             children: [
-              Text('此刻你的心情如何？'),
+              const Text('此刻你的心情如何？'),
               TextField(decoration: InputDecoration(hintText: '請輸入心情描述')),
-              SizedBox(height: 20),
-              Text('今天讓你感到最溫暖的事情是什麼？'),
+              const SizedBox(height: 20),
+              const Text('今天讓你感到最溫暖的事情是什麼？'),
               TextField(decoration: InputDecoration(hintText: '請輸入感恩事項')),
-              SizedBox(height: 20),
+              const SizedBox(height: 20),
               ElevatedButton(
                 onPressed: () {
                   // 提交日記後導向推薦頁面
                   Navigator.pushNamed(context, '/recommendation');
                 },
-                child: Text('提交日記'),
+                child: const Text('提交日記'),
               ),
             ],
           ),
@@ -384,14 +470,14 @@ class DiaryScreen extends StatelessWidget {
   }
 }
 
-// ===== 精油與練習推薦頁面 (Use Case 3) =====
+// ===== 精油與練習推薦頁面 =====
 class RecommendationScreen extends StatelessWidget {
   const RecommendationScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('推薦')),
+      appBar: AppBar(title: const Text('推薦')),
       body: Container(
         decoration: BoxDecoration(
           image: DecorationImage(
@@ -403,13 +489,13 @@ class RecommendationScreen extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Text('AI 分析結果：'),
-              Text('今日建議使用薰衣草精油搭配 5 分鐘冥想'),
+              const Text('AI 分析結果：'),
+              const Text('今日建議使用薰衣草精油搭配 5 分鐘冥想'),
               ElevatedButton(
                 onPressed: () {
                   // 若有連結購買頁面，這裡可以導向購買頁面
                 },
-                child: Text('了解更多'),
+                child: const Text('了解更多'),
               ),
             ],
           ),
@@ -419,14 +505,14 @@ class RecommendationScreen extends StatelessWidget {
   }
 }
 
-// ===== 聊天機器人頁面 (Use Case 5) =====
+// ===== 聊天機器人頁面 =====
 class ChatbotScreen extends StatelessWidget {
   const ChatbotScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('聊天機器人')),
+      appBar: AppBar(title: const Text('聊天機器人')),
       body: Container(
         decoration: BoxDecoration(
           image: DecorationImage(
@@ -438,8 +524,8 @@ class ChatbotScreen extends StatelessWidget {
           children: [
             Expanded(
               child: Container(
-                color: Colors.grey[200]!.withValues(alpha: 0.5), // 设置半透明的背景色
-                child: Center(child: Text('聊天記錄')),
+                color: Colors.grey[200]!.withValues(alpha: 0.5),
+                child: const Center(child: Text('聊天記錄')),
               ),
             ),
             Padding(
@@ -452,7 +538,7 @@ class ChatbotScreen extends StatelessWidget {
                     ),
                   ),
                   IconButton(
-                    icon: Icon(Icons.send),
+                    icon: const Icon(Icons.send),
                     onPressed: () {
                       // 發送訊息給 AI 回應
                     },
@@ -467,14 +553,14 @@ class ChatbotScreen extends StatelessWidget {
   }
 }
 
-// ===== 呼吸練習頁面 (Use Case 6) =====
+// ===== 呼吸練習頁面 =====
 class BreathingScreen extends StatelessWidget {
   const BreathingScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('呼吸練習')),
+      appBar: AppBar(title: const Text('呼吸練習')),
       body: Container(
         decoration: BoxDecoration(
           image: DecorationImage(
@@ -486,18 +572,18 @@ class BreathingScreen extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Text('選擇一個呼吸練習'),
+              const Text('選擇一個呼吸練習'),
               ElevatedButton(
                 onPressed: () {
                   // 4-7-8 呼吸法
                 },
-                child: Text('4-7-8 呼吸法'),
+                child: const Text('4-7-8 呼吸法'),
               ),
               ElevatedButton(
                 onPressed: () {
                   // 盒子呼吸法
                 },
-                child: Text('盒子呼吸法'),
+                child: const Text('盒子呼吸法'),
               ),
             ],
           ),
@@ -507,14 +593,14 @@ class BreathingScreen extends StatelessWidget {
   }
 }
 
-// ===== 設定與個人化頁面 (Use Case 7) =====
+// ===== 設定與個人化頁面 =====
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('設定')),
+      appBar: AppBar(title: const Text('設定')),
       body: Container(
         decoration: BoxDecoration(
           image: DecorationImage(
@@ -525,18 +611,70 @@ class SettingsScreen extends StatelessWidget {
         child: ListView(
           children: [
             ListTile(
-              title: Text('每日提醒設定'),
+              title: const Text('每日提醒設定'),
               onTap: () {
                 // 設定提醒
               },
             ),
             ListTile(
-              title: Text('佈景主題'),
+              title: const Text('佈景主題'),
               onTap: () {
                 // 更改佈景主題
               },
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+// ===== 日記回顧頁面 =====
+class DiaryReviewScreen extends StatelessWidget {
+  const DiaryReviewScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('日記回顧')),
+      body: Container(
+        decoration: BoxDecoration(
+          image: DecorationImage(
+            image: AssetImage('assets/picture/diary_review.jpg'),
+            fit: BoxFit.cover,
+          ),
+        ),
+        child: const Center(
+          child: Text(
+            '這裡是你所有的日記回顧',
+            style: TextStyle(fontSize: 20, color: Colors.black87),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ===== Store 頁面 =====
+class StoreScreen extends StatelessWidget {
+  const StoreScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Store')),
+      body: Container(
+        decoration: BoxDecoration(
+          image: DecorationImage(
+            image: AssetImage('assets/picture/store.jpg'),
+            fit: BoxFit.cover,
+          ),
+        ),
+        child: const Center(
+          child: Text(
+            '歡迎來到 Smaily 商店！',
+            style: TextStyle(fontSize: 20, color: Colors.black87),
+          ),
         ),
       ),
     );

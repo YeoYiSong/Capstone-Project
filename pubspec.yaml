@@ -13,11 +13,21 @@ dependencies:
   cupertino_icons: ^1.0.8
   url_launcher: ^6.0.9  # 確保只有一個 dependencies 區塊
   google_fonts: ^6.2.1
+  firebase_core: ^3.6.0
+  firebase_auth: ^5.3.1
+  google_sign_in: ^6.2.1
+  sign_in_with_apple: ^6.1.0
+  audioplayers: ^6.0.0
+  table_calendar: ^3.0.9
+  intl: ^0.19.0
+  mysql1: ^0.20.0
+  http: ^1.1.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^5.0.0
+  
 
 flutter:
   uses-material-design: true
@@ -34,3 +44,4 @@ flutter:
     - assets/icons/fb.png
     - assets/icons/google.png
     - assets/icons/gmail.jpg
+    - assets/breathing_guide.mp4

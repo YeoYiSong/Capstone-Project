@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:flutter_facebook_auth/flutter_facebook_auth.dart'; // 👈 加這行
+import 'package:flutter/foundation.dart' show kIsWeb; // 👈 加這行
+
 import 'firebase_options.dart';
 import 'screens/start_screen.dart';
 import 'screens/login_screen.dart';
@@ -16,10 +19,21 @@ import 'screens/store_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // ✅ Facebook SDK 初始化（Web only）
+  if (kIsWeb) {
+    await FacebookAuth.i.webAndDesktopInitialize(
+      appId: "9566947040053985",
+      cookie: true,
+      xfbml: true,
+      version: "v19.0",
+    );
+  }
+
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-  // 初始化本地化數據，支持英語和中文
   await initializeDateFormatting('en_US', null);
   await initializeDateFormatting('zh_CN', null);
+
   runApp(const Smaily2App());
 }
 
@@ -78,10 +92,7 @@ class _Smaily2AppState extends State<Smaily2App> {
                 primarySwatch: Colors.blue,
                 scaffoldBackgroundColor: Colors.white,
               ),
-      locale:
-          _isEnglish
-              ? const Locale('en', 'US')
-              : const Locale('zh', 'CN'), // 設置動態 locale
+      locale: _isEnglish ? const Locale('en', 'US') : const Locale('zh', 'CN'),
       initialRoute: '/',
       routes: {
         '/': (context) => const StartScreen(),

@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
+import 'package:flutter/foundation.dart' show kIsWeb, kDebugMode;
 
 class LoginScreen extends StatefulWidget {
   final bool isEnglish;
@@ -18,34 +19,23 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isLoading = false;
 
   Future<void> _signInWithEmail() async {
-    setState(() {
-      _isLoading = true;
-    });
-
+    setState(() => _isLoading = true);
     try {
       final String email = _emailController.text.trim();
       final String password = _passwordController.text;
-
       if (email.isEmpty || password.isEmpty) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                widget.isEnglish
-                    ? 'Email and password cannot be empty'
-                    : '郵箱和密碼不能為空',
-              ),
-            ),
+          _showSnackBar(
+            widget.isEnglish
+                ? 'Email and password cannot be empty'
+                : '郵箱和密碼不能為空',
           );
         }
         return;
       }
-
       final UserCredential userCredential = await FirebaseAuth.instance
           .signInWithEmailAndPassword(email: email, password: password);
-
       final User? user = userCredential.user;
-
       if (user != null && mounted) {
         Navigator.pushReplacementNamed(
           context,
@@ -54,42 +44,13 @@ class _LoginScreenState extends State<LoginScreen> {
         );
       }
     } on FirebaseAuthException catch (e) {
-      String errorMessage;
-      if (e.code == 'user-not-found') {
-        errorMessage =
-            widget.isEnglish ? 'No user found for that email.' : '找不到該郵箱的用戶。';
-      } else if (e.code == 'wrong-password') {
-        errorMessage = widget.isEnglish ? 'Incorrect password.' : '密碼錯誤。';
-      } else if (e.code == 'invalid-email') {
-        errorMessage = widget.isEnglish ? 'Invalid email format.' : '無效的郵箱格式。';
-      } else {
-        errorMessage =
-            widget.isEnglish
-                ? 'Login failed: ${e.message}'
-                : '登入失敗：${e.message}';
-      }
-
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(errorMessage)));
-      }
+      _handleFirebaseError(e);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              widget.isEnglish ? 'An error occurred: $e' : '發生錯誤：$e',
-            ),
-          ),
-        );
+        _showSnackBar(widget.isEnglish ? 'An error occurred: $e' : '發生錯誤：$e');
       }
     } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -101,23 +62,17 @@ class _LoginScreenState extends State<LoginScreen> {
                 ? '483152981384-82gv1o0baejlppm0ouqj10ppdj56i7ov.apps.googleusercontent.com'
                 : null,
       );
-
       final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
-      if (googleUser == null) {
-        return;
-      }
-
+      if (googleUser == null) return;
       final GoogleSignInAuthentication googleAuth =
           await googleUser.authentication;
       final credential = GoogleAuthProvider.credential(
         accessToken: googleAuth.accessToken,
         idToken: googleAuth.idToken,
       );
-
       final UserCredential userCredential = await FirebaseAuth.instance
           .signInWithCredential(credential);
       final User? user = userCredential.user;
-
       if (user != null && mounted) {
         Navigator.pushReplacementNamed(
           context,
@@ -127,12 +82,72 @@ class _LoginScreenState extends State<LoginScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              widget.isEnglish ? 'Google login failed: $e' : 'Google 登入失敗: $e',
-            ),
-          ),
+        _showSnackBar(
+          widget.isEnglish ? 'Google login failed: $e' : 'Google 登入失敗: $e',
+        );
+      }
+    }
+  }
+
+  Future<void> _signInWithFacebook() async {
+    try {
+      // 檢查當前平台並設置適當的 loginBehavior
+      final LoginBehavior loginBehavior =
+          kIsWeb ? LoginBehavior.dialogOnly : LoginBehavior.nativeWithFallback;
+
+      // 添加調試日誌以檢查平台和行為
+      if (kDebugMode) {
+        print("Platform: ${kIsWeb ? 'Web' : 'Mobile'}");
+        print("Using loginBehavior: $loginBehavior");
+      }
+
+      // 執行 Facebook 登入
+      final LoginResult result = await FacebookAuth.instance.login(
+        permissions: ['public_profile', 'email'],
+        loginBehavior: loginBehavior,
+      );
+
+      // 詳細調試日誌
+      if (kDebugMode) {
+        print("Facebook login status: ${result.status}");
+        print("Facebook login message: ${result.message}");
+        print("Facebook accessToken: ${result.accessToken?.tokenString}");
+        print("Full result: ${result.toString()}");
+      }
+
+      if (result.status == LoginStatus.success) {
+        final AccessToken accessToken = result.accessToken!;
+        final OAuthCredential credential = FacebookAuthProvider.credential(
+          accessToken.tokenString,
+        );
+        final UserCredential userCredential = await FirebaseAuth.instance
+            .signInWithCredential(credential);
+        final User? user = userCredential.user;
+        if (user != null && mounted) {
+          Navigator.pushReplacementNamed(
+            context,
+            '/home',
+            arguments: user.displayName ?? user.email ?? 'User',
+          );
+        }
+      } else {
+        if (mounted) {
+          _showDialog(
+            'Facebook 登入失敗',
+            'Status: ${result.status}\nMessage: ${result.message ?? "無錯誤訊息"}\n'
+                'Platform: ${kIsWeb ? "Web" : "Mobile"}',
+          );
+        }
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print("Exception during Facebook login: $e");
+      }
+      if (mounted) {
+        _showSnackBar(
+          widget.isEnglish
+              ? 'Error during Facebook login: $e'
+              : 'Facebook 登入錯誤：$e',
         );
       }
     }
@@ -207,6 +222,51 @@ class _LoginScreenState extends State<LoginScreen> {
           ],
         );
       },
+    );
+  }
+
+  void _handleFirebaseError(FirebaseAuthException e) {
+    String errorMessage;
+    switch (e.code) {
+      case 'user-not-found':
+        errorMessage =
+            widget.isEnglish ? 'No user found for that email.' : '找不到該郵箱的用戶。';
+        break;
+      case 'wrong-password':
+        errorMessage = widget.isEnglish ? 'Incorrect password.' : '密碼錯誤。';
+        break;
+      case 'invalid-email':
+        errorMessage = widget.isEnglish ? 'Invalid email format.' : '無效的郵箱格式。';
+        break;
+      default:
+        errorMessage =
+            widget.isEnglish
+                ? 'Login failed: ${e.message}'
+                : '登入失敗：${e.message}';
+    }
+    _showSnackBar(errorMessage);
+  }
+
+  void _showSnackBar(String message) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  void _showDialog(String title, String content) {
+    showDialog(
+      context: context,
+      builder:
+          (ctx) => AlertDialog(
+            title: Text(title),
+            content: Text(content),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text("OK"),
+              ),
+            ],
+          ),
     );
   }
 
@@ -315,7 +375,7 @@ class _LoginScreenState extends State<LoginScreen> {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 IconButton(
-                  onPressed: () {},
+                  onPressed: _signInWithFacebook,
                   icon: Image.asset("assets/icons/fb.png", width: 40),
                 ),
                 const SizedBox(width: 20),

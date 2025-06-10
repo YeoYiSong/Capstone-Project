@@ -22,7 +22,7 @@ dependencies:
   intl: ^0.19.0
   mysql1: ^0.20.0
   http: ^1.1.0
-  
+  shared_preferences: ^2.3.0
 
 dev_dependencies:
   flutter_test:
@@ -41,8 +41,9 @@ flutter:
     - assets/picture/chatbot.png
     - assets/picture/breathing.jpg
     - assets/picture/setting.jpg
-    - assets/icons/apple.png
     - assets/icons/fb.png
     - assets/icons/google.png
-    - assets/icons/gmail.jpg
     - assets/breathing_guide.mp4
+    - assets/scenario_music/relaxing-smoothed-brown-noise.mp3
+    - assets/scenario_music/soft-brown-noise-.mp3
+    - assets/scenario_music/soothing-deep-noise-.mp3

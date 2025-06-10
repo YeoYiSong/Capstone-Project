@@ -32,7 +32,14 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Smaily 2'),
-        actions: [IconButton(icon: const Icon(Icons.timer), onPressed: () {})],
+        actions: [
+          IconButton(
+            icon: const Text('⤡', style: TextStyle(fontSize: 24)),
+            onPressed: () {
+              Navigator.pushNamed(context, '/scenario');
+            },
+          ),
+        ],
       ),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

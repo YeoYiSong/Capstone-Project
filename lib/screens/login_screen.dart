@@ -380,11 +380,6 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 const SizedBox(width: 20),
                 IconButton(
-                  onPressed: () {},
-                  icon: Image.asset("assets/icons/apple.png", width: 40),
-                ),
-                const SizedBox(width: 20),
-                IconButton(
                   onPressed: _signInWithGoogle,
                   icon: Image.asset("assets/icons/google.png", width: 40),
                 ),

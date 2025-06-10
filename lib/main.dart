@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:intl/date_symbol_data_local.dart';
-import 'package:flutter_facebook_auth/flutter_facebook_auth.dart'; // 👈 加這行
-import 'package:flutter/foundation.dart' show kIsWeb; // 👈 加這行
-
+import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'firebase_options.dart';
 import 'screens/start_screen.dart';
 import 'screens/login_screen.dart';
@@ -16,11 +15,11 @@ import 'screens/breathing_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/diary_review_screen.dart';
 import 'screens/store_screen.dart';
+import 'screens/scenario_mode_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // ✅ Facebook SDK 初始化（Web only）
   if (kIsWeb) {
     await FacebookAuth.i.webAndDesktopInitialize(
       appId: "9566947040053985",
@@ -124,6 +123,7 @@ class _Smaily2AppState extends State<Smaily2App> {
               isEnglish: _isEnglish,
             ),
         '/store': (context) => const StoreScreen(),
+        '/scenario': (context) => ScenarioModeScreen(isEnglish: _isEnglish),
       },
     );
   }

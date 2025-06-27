@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 class HomeScreen extends StatefulWidget {
   final String username;
@@ -19,6 +21,55 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  String _displayName = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchDisplayName();
+  }
+
+  Future<void> _fetchDisplayName() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      setState(() => _displayName = widget.isEnglish ? 'Guest' : '訪客');
+      return;
+    }
+
+    try {
+      final response = await http.post(
+        Uri.parse('http://localhost:5000/get_user_id'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({'firebase_uid': user.uid}),
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        setState(() {
+          _displayName =
+              data['name'] ??
+              user.displayName ??
+              user.email ??
+              (widget.isEnglish ? 'User' : '使用者');
+        });
+      } else {
+        setState(() {
+          _displayName =
+              user.displayName ??
+              user.email ??
+              (widget.isEnglish ? 'User' : '使用者');
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _displayName =
+            user.displayName ??
+            user.email ??
+            (widget.isEnglish ? 'User' : '使用者');
+      });
+    }
+  }
+
   Future<void> _signOut() async {
     await FirebaseAuth.instance.signOut();
     await GoogleSignIn().signOut();
@@ -48,8 +99,8 @@ class _HomeScreenState extends State<HomeScreen> {
             padding: const EdgeInsets.all(16.0),
             child: Text(
               widget.isEnglish
-                  ? 'Hello~ ${widget.username} owo'
-                  : '你好~${widget.username} owo',
+                  ? 'Hello~ $_displayName owo'
+                  : '你好~$_displayName owo',
               style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
             ),
           ),
@@ -156,11 +207,7 @@ class _HomeScreenState extends State<HomeScreen> {
     VoidCallback? onTap,
   }) {
     return GestureDetector(
-      onTap:
-          onTap ??
-          () {
-            Navigator.pushNamed(context, route);
-          },
+      onTap: onTap ?? () => Navigator.pushNamed(context, route),
       child: Column(
         children: [
           Container(
@@ -187,11 +234,7 @@ class _HomeScreenState extends State<HomeScreen> {
     VoidCallback? onPressed,
   }) {
     return ElevatedButton(
-      onPressed:
-          onPressed ??
-          () {
-            Navigator.pushNamed(context, route);
-          },
+      onPressed: onPressed ?? () => Navigator.pushNamed(context, route),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [

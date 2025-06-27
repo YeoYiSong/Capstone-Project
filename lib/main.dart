@@ -16,10 +16,12 @@ import 'screens/settings_screen.dart';
 import 'screens/diary_review_screen.dart';
 import 'screens/store_screen.dart';
 import 'screens/scenario_mode_screen.dart';
+import '/utils/api_client.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // 初始化 Facebook Auth（僅限 Web）
   if (kIsWeb) {
     await FacebookAuth.i.webAndDesktopInitialize(
       appId: "9566947040053985",
@@ -29,9 +31,15 @@ void main() async {
     );
   }
 
+  // 初始化 Firebase
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
+  // 初始化日期格式
   await initializeDateFormatting('en_US', null);
   await initializeDateFormatting('zh_CN', null);
+
+  // 初始化 ApiClient，自動配置 baseUrl
+  await ApiClient.initialize();
 
   runApp(const Smaily2App());
 }

@@ -3,6 +3,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 import 'package:flutter/foundation.dart' show kIsWeb, kDebugMode;
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 class LoginScreen extends StatefulWidget {
   final bool isEnglish;
@@ -37,11 +39,19 @@ class _LoginScreenState extends State<LoginScreen> {
           .signInWithEmailAndPassword(email: email, password: password);
       final User? user = userCredential.user;
       if (user != null && mounted) {
-        Navigator.pushReplacementNamed(
-          context,
-          '/home',
-          arguments: user.displayName ?? user.email ?? 'User',
-        );
+        final int? userId = await _fetchUserId(user.uid);
+        if (userId != null) {
+          if (!mounted) return;
+          Navigator.pushReplacementNamed(
+            context,
+            '/home',
+            arguments: {
+              'name': user.displayName ?? user.email ?? 'User',
+              'userId': userId,
+              'uid': user.uid,
+            },
+          );
+        }
       }
     } on FirebaseAuthException catch (e) {
       _handleFirebaseError(e);
@@ -74,11 +84,19 @@ class _LoginScreenState extends State<LoginScreen> {
           .signInWithCredential(credential);
       final User? user = userCredential.user;
       if (user != null && mounted) {
-        Navigator.pushReplacementNamed(
-          context,
-          '/home',
-          arguments: user.displayName ?? user.email ?? 'User',
-        );
+        final int? userId = await _fetchUserId(user.uid);
+        if (userId != null) {
+          if (!mounted) return;
+          Navigator.pushReplacementNamed(
+            context,
+            '/home',
+            arguments: {
+              'name': user.displayName ?? user.email ?? 'User',
+              'userId': userId,
+              'uid': user.uid,
+            },
+          );
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -91,23 +109,19 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Future<void> _signInWithFacebook() async {
     try {
-      // 檢查當前平台並設置適當的 loginBehavior
       final LoginBehavior loginBehavior =
           kIsWeb ? LoginBehavior.dialogOnly : LoginBehavior.nativeWithFallback;
 
-      // 添加調試日誌以檢查平台和行為
       if (kDebugMode) {
         print("Platform: ${kIsWeb ? 'Web' : 'Mobile'}");
         print("Using loginBehavior: $loginBehavior");
       }
 
-      // 執行 Facebook 登入
       final LoginResult result = await FacebookAuth.instance.login(
         permissions: ['public_profile', 'email'],
         loginBehavior: loginBehavior,
       );
 
-      // 詳細調試日誌
       if (kDebugMode) {
         print("Facebook login status: ${result.status}");
         print("Facebook login message: ${result.message}");
@@ -124,11 +138,19 @@ class _LoginScreenState extends State<LoginScreen> {
             .signInWithCredential(credential);
         final User? user = userCredential.user;
         if (user != null && mounted) {
-          Navigator.pushReplacementNamed(
-            context,
-            '/home',
-            arguments: user.displayName ?? user.email ?? 'User',
-          );
+          final int? userId = await _fetchUserId(user.uid);
+          if (userId != null) {
+            if (!mounted) return;
+            Navigator.pushReplacementNamed(
+              context,
+              '/home',
+              arguments: {
+                'name': user.displayName ?? user.email ?? 'User',
+                'userId': userId,
+                'uid': user.uid,
+              },
+            );
+          }
         }
       } else {
         if (mounted) {
@@ -150,6 +172,31 @@ class _LoginScreenState extends State<LoginScreen> {
               : 'Facebook 登入錯誤：$e',
         );
       }
+    }
+  }
+
+  Future<int?> _fetchUserId(String firebaseUid) async {
+    try {
+      final response = await http.post(
+        Uri.parse('http://127.0.0.1:5000/get_user_id'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'firebase_uid': firebaseUid}),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return data['user_id'];
+      } else {
+        _showSnackBar(
+          widget.isEnglish
+              ? 'Failed to fetch user ID from backend'
+              : '無法從後端獲取使用者 ID',
+        );
+        return null;
+      }
+    } catch (e) {
+      _showSnackBar(widget.isEnglish ? 'Error: $e' : '錯誤：$e');
+      return null;
     }
   }
 

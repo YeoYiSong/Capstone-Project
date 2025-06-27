@@ -1,7 +1,14 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:audioplayers/audioplayers.dart';
+import 'package:flutter/foundation.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:http/http.dart' as http;
+
+import '../utils/api_client.dart';
 import 'home_screen.dart';
+import 'record_feelings_screen.dart';
 
 class BreathingScreen extends StatefulWidget {
   final bool isEnglish;
@@ -13,52 +20,81 @@ class BreathingScreen extends StatefulWidget {
 }
 
 class BreathingScreenState extends State<BreathingScreen> {
-  int duration = 5; // 初始值改為 5 分鐘（新範圍的最小值）
-  int step = 0; // 當前階段（0: 選擇時長, 1: 準備, 2: 練習, 3: 完成）
-  final AudioPlayer _audioPlayer = AudioPlayer(); // 音頻播放器
-  Timer? _timer; // 計時器，用於控制練習時長
-  bool _isPlaying = false; // 音頻是否正在播放
-  int _remainingSeconds = 0; // 剩餘時間（秒）
+  int duration = 5;
+  int step = 0;
+  final AudioPlayer _audioPlayer = AudioPlayer();
+  Timer? _timer;
+  bool _isPlaying = false;
+  int _remainingSeconds = 0;
+  final ApiClient _apiClient = ApiClient();
+
+  String? _userId;
 
   @override
   void initState() {
     super.initState();
-    // 初始化音頻播放器，設置音頻文件
     _audioPlayer.setSource(AssetSource('breathing_guide.mp4'));
+    _getUserIdFromFirebase();
+  }
+
+  Future<void> _getUserIdFromFirebase() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+
+      final uid = user.uid;
+      final response = await http.post(
+        Uri.parse('${_apiClient.baseUrl}/get_user_id'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'firebase_uid': uid}),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        setState(() {
+          _userId = data['user_id'].toString();
+        });
+      } else {
+        if (kDebugMode) {
+          print('後端回傳錯誤：${response.body}');
+        }
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('取得 userId 錯誤：$e');
+      }
+    }
   }
 
   @override
   void dispose() {
-    _audioPlayer.dispose(); // 清理音頻播放器
-    _timer?.cancel(); // 取消計時器
+    _audioPlayer.dispose();
+    _timer?.cancel();
     super.dispose();
   }
 
-  // 開始練習：啟動音頻和計時器
   void _startExercise() {
     setState(() {
       step = 2;
       _isPlaying = true;
-      _remainingSeconds = duration * 60; // 將分鐘轉換為秒
+      _remainingSeconds = duration * 60;
     });
-    _audioPlayer.play(AssetSource('breathing_guide.mp4')); // 播放音頻
-    _startTimer(); // 啟動計時器
+    _audioPlayer.play(AssetSource('breathing_guide.mp4'));
+    _startTimer();
   }
 
-  // 啟動計時器，根據選擇的時長倒計時
   void _startTimer() {
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       setState(() {
         if (_remainingSeconds > 0) {
           _remainingSeconds--;
         } else {
-          _stopExercise(); // 時間到，停止練習
+          _stopExercise();
         }
       });
     });
   }
 
-  // 暫停或繼續練習
   void _togglePause() {
     setState(() {
       if (_isPlaying) {
@@ -72,7 +108,6 @@ class BreathingScreenState extends State<BreathingScreen> {
     });
   }
 
-  // 停止練習：停止音頻和計時器，進入完成階段
   void _stopExercise() {
     _audioPlayer.stop();
     _timer?.cancel();
@@ -80,9 +115,47 @@ class BreathingScreenState extends State<BreathingScreen> {
       step = 3;
       _isPlaying = false;
     });
+    _saveBreathingDuration();
   }
 
-  // 格式化剩餘時間為 MM:SS
+  void _saveBreathingDuration() async {
+    if (_userId == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            widget.isEnglish ? 'User ID not available.' : '無法取得使用者 ID',
+          ),
+        ),
+      );
+      return;
+    }
+
+    try {
+      await _apiClient.saveBreathRecord(
+        userId: _userId!,
+        duration: duration,
+        min: duration,
+        felling: null,
+        type: '引導',
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(widget.isEnglish ? 'Duration saved!' : '練習時長已儲存！'),
+        ),
+      );
+    } catch (e) {
+      if (kDebugMode) {
+        print('儲存練習時長錯誤：$e');
+      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('儲存練習時長失敗：$e')));
+    }
+  }
+
   String _formatDuration(int seconds) {
     final minutes = (seconds ~/ 60).toString().padLeft(2, '0');
     final secs = (seconds % 60).toString().padLeft(2, '0');
@@ -92,7 +165,6 @@ class BreathingScreenState extends State<BreathingScreen> {
   @override
   Widget build(BuildContext context) {
     if (step == 0) {
-      // 階段 0：選擇練習時長
       return Scaffold(
         appBar: AppBar(
           title: Text(widget.isEnglish ? 'Breathing Exercise' : '呼吸練習'),
@@ -108,9 +180,9 @@ class BreathingScreenState extends State<BreathingScreen> {
               const SizedBox(height: 20),
               Slider(
                 value: duration.toDouble(),
-                min: 5, // 更改最小值為 5
-                max: 10, // 更改最大值為 10
-                divisions: 5, // 調整分段為 5（5, 6, 7, 8, 9, 10）
+                min: 5,
+                max: 10,
+                divisions: 5,
                 label: widget.isEnglish ? '$duration minutes' : '$duration 分鐘',
                 onChanged: (value) {
                   setState(() {
@@ -136,7 +208,6 @@ class BreathingScreenState extends State<BreathingScreen> {
         ),
       );
     } else if (step == 1) {
-      // 階段 1：準備開始
       return Scaffold(
         appBar: AppBar(
           title: Text(widget.isEnglish ? 'Breathing Exercise' : '呼吸練習'),
@@ -162,7 +233,6 @@ class BreathingScreenState extends State<BreathingScreen> {
         ),
       );
     } else if (step == 2) {
-      // 階段 2：練習進行中
       return Scaffold(
         appBar: AppBar(
           title: Text(widget.isEnglish ? 'Breathing Exercise' : '呼吸練習'),
@@ -186,7 +256,6 @@ class BreathingScreenState extends State<BreathingScreen> {
                 style: const TextStyle(fontSize: 18),
               ),
               const SizedBox(height: 20),
-              // 進度條
               LinearProgressIndicator(
                 value: _remainingSeconds / (duration * 60),
                 minHeight: 10,
@@ -212,12 +281,18 @@ class BreathingScreenState extends State<BreathingScreen> {
                   ),
                 ],
               ),
+              const SizedBox(height: 20),
+              Text(
+                widget.isEnglish
+                    ? 'Duration Selected: $duration minutes'
+                    : '選擇的時長：$duration 分鐘',
+                style: const TextStyle(fontSize: 16),
+              ),
             ],
           ),
         ),
       );
     } else {
-      // 階段 3：練習完成
       return Scaffold(
         appBar: AppBar(
           title: Text(widget.isEnglish ? 'Breathing Exercise' : '呼吸練習'),
@@ -234,6 +309,30 @@ class BreathingScreenState extends State<BreathingScreen> {
                 ),
               ),
               const SizedBox(height: 20),
+              Text(
+                widget.isEnglish
+                    ? 'Duration: $duration minutes'
+                    : '時長：$duration 分鐘',
+                style: const TextStyle(fontSize: 16),
+              ),
+              const SizedBox(height: 20),
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder:
+                          (context) => RecordFeelingsScreen(
+                            isEnglish: widget.isEnglish,
+                            date: DateTime.now(),
+                            duration: duration,
+                          ),
+                    ),
+                  );
+                },
+                child: Text(widget.isEnglish ? 'Record Feelings' : '記錄感受'),
+              ),
+              const SizedBox(height: 20),
               ElevatedButton(
                 onPressed: () {
                   Navigator.pushAndRemoveUntil(
@@ -241,14 +340,14 @@ class BreathingScreenState extends State<BreathingScreen> {
                     MaterialPageRoute(
                       builder:
                           (context) => HomeScreen(
-                            username: 'jiuke',
+                            username: 'User',
                             isEnglish: widget.isEnglish,
                           ),
                     ),
                     (route) => false,
                   );
                 },
-                child: Text(widget.isEnglish ? 'Finish' : '結束'),
+                child: Text(widget.isEnglish ? 'Back to Home' : '返回首頁'),
               ),
             ],
           ),

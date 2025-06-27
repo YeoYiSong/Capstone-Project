@@ -1,40 +1,44 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <meta charset="UTF-8" />
-    <title>flutter_application_1</title>
-    <base href="/" />
-    <meta content="IE=Edge" http-equiv="X-UA-Compatible" />
-    <meta name="description" content="A new Flutter project." />
-    <meta name="mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black" />
-    <meta name="apple-mobile-web-app-title" content="flutter_application_1" />
-    <link rel="apple-touch-icon" href="icons/Icon-192.png" />
-    <link rel="icon" type="image/png" href="favicon.png" />
-    <link rel="manifest" href="manifest.json" />
+  <meta charset="UTF-8" />
+  <title>flutter_application_1</title>
+  <base href="/" />
+  <meta content="IE=Edge" http-equiv="X-UA-Compatible" />
+  <meta name="description" content="A new Flutter project." />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+  <meta name="apple-mobile-web-app-title" content="flutter_application_1" />
+  <link rel="apple-touch-icon" href="icons/Icon-192.png" />
+  <link rel="icon" type="image/png" href="favicon.png" />
+  <link rel="manifest" href="manifest.json" />
 
-    <!-- 🔽 正確載入 Facebook SDK -->
-    <script>
-      window.fbAsyncInit = function () {
-        FB.init({
-          appId: '9566947040053985',
-          cookie: true,
-          xfbml: true,
-          version: 'v19.0'
-        });
-        FB.AppEvents.logPageView();
-        window.fbLoaded = true;
-      };
+  <!-- ✅ Facebook SDK -->
+  <script>
+    window.fbAsyncInit = function () {
+      FB.init({
+        appId: '9566947040053985',
+        cookie: true,
+        xfbml: true,
+        version: 'v19.0'
+      });
+      FB.AppEvents.logPageView();
+      window.fbLoaded = true;
+    };
 
-      (function (d, s, id) {
-        if (d.getElementById(id)) return;
-        var js = d.createElement(s); js.id = id;
-        js.src = "https://connect.facebook.net/en_US/sdk.js";
-        var fjs = d.getElementsByTagName(s)[0];
-        fjs.parentNode.insertBefore(js, fjs);
-      })(document, 'script', 'facebook-jssdk');
-    </script>
-  </head>
+    (function (d, s, id) {
+      if (d.getElementById(id)) return;
+      var js = d.createElement(s); js.id = id;
+      js.src = "https://connect.facebook.net/en_US/sdk.js";
+      var fjs = d.getElementsByTagName(s)[0];
+      fjs.parentNode.insertBefore(js, fjs);
+    })(document, 'script', 'facebook-jssdk');
+  </script>
+
+  <!-- ✅ Google SDKs -->
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script src="https://apis.google.com/js/platform.js" async defer></script>
+</head>
 
   <body>
     <script src="flutter_bootstrap.js" async></script>

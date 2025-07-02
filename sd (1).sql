@@ -2,9 +2,9 @@
 -- version 5.2.1
 -- https://www.phpmyadmin.net/
 --
--- 主機： 127.0.0.1
--- 產生時間： 2025 年 07 月 02 日 12:57
--- 伺服器版本： 10.4.32-MariaDB
+-- 主机： 127.0.0.1
+-- 生成日期： 2025-07-02 19:43:36
+-- 服务器版本： 10.4.32-MariaDB
 -- PHP 版本： 8.2.12
 
 SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
@@ -18,13 +18,13 @@ SET time_zone = "+00:00";
 /*!40101 SET NAMES utf8mb4 */;
 
 --
--- 資料庫： `sd`
+-- 数据库： `sd`
 --
 
 -- --------------------------------------------------------
 
 --
--- 資料表結構 `auth_users`
+-- 表的结构 `auth_users`
 --
 
 CREATE TABLE `auth_users` (
@@ -35,20 +35,22 @@ CREATE TABLE `auth_users` (
   `google_bound` tinyint(1) DEFAULT 0,
   `apple_id` varchar(100) DEFAULT NULL,
   `apple_bound` tinyint(1) DEFAULT 0,
-  `create_at` datetime DEFAULT current_timestamp()
+  `create_at` datetime DEFAULT current_timestamp(),
+  `firebase_uid` varchar(128) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
--- 傾印資料表的資料 `auth_users`
+-- 转存表中的数据 `auth_users`
 --
 
-INSERT INTO `auth_users` (`id`, `phone_number`, `password`, `google_id`, `google_bound`, `apple_id`, `apple_bound`, `create_at`) VALUES
-(1, NULL, NULL, NULL, 0, NULL, 0, '2025-07-02 15:08:42');
+INSERT INTO `auth_users` (`id`, `phone_number`, `password`, `google_id`, `google_bound`, `apple_id`, `apple_bound`, `create_at`, `firebase_uid`) VALUES
+(1, NULL, NULL, NULL, 0, NULL, 0, '2025-07-02 15:08:42', NULL),
+(2, NULL, NULL, NULL, 0, NULL, 0, '2025-07-03 00:42:51', 'Sm5RG6yzcgTaQeseduqwSD6o5bo1');
 
 -- --------------------------------------------------------
 
 --
--- 資料表結構 `breath_record`
+-- 表的结构 `breath_record`
 --
 
 CREATE TABLE `breath_record` (
@@ -61,10 +63,18 @@ CREATE TABLE `breath_record` (
   `type` enum('正常','引導') NOT NULL DEFAULT '引導'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
+--
+-- 转存表中的数据 `breath_record`
+--
+
+INSERT INTO `breath_record` (`id`, `user_id`, `duration`, `min`, `felling`, `create_at`, `type`) VALUES
+(1, 4, 5, 5, NULL, '2025-07-03 00:43:12', '引導'),
+(2, 4, 5, 5, '哈', '2025-07-03 00:43:19', '引導');
+
 -- --------------------------------------------------------
 
 --
--- 資料表結構 `color`
+-- 表的结构 `color`
 --
 
 CREATE TABLE `color` (
@@ -77,7 +87,7 @@ CREATE TABLE `color` (
 -- --------------------------------------------------------
 
 --
--- 資料表結構 `diaries`
+-- 表的结构 `diaries`
 --
 
 CREATE TABLE `diaries` (
@@ -92,13 +102,23 @@ CREATE TABLE `diaries` (
   `exhaust` float DEFAULT 0,
   `color_mix` char(7) DEFAULT NULL,
   `create_at` datetime DEFAULT current_timestamp(),
-  `oil_id` int(11) DEFAULT NULL
+  `oil_id` int(11) DEFAULT NULL,
+  `details` text DEFAULT NULL,
+  `is_english` tinyint(1) DEFAULT 0
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- 转存表中的数据 `diaries`
+--
+
+INSERT INTO `diaries` (`id`, `user_id`, `content`, `joy`, `sadness`, `anger`, `positive`, `anxiety`, `exhaust`, `color_mix`, `create_at`, `oil_id`, `details`, `is_english`) VALUES
+(1, 4, '很煩啊', 0, 0, 0, 0, 51.852, 0, '#4F8000', '2025-07-03 01:13:18', NULL, '', 0),
+(2, 4, '可惡啊', 0, 0, 60.0644, 0, 0, 0, '#5CFF00', '2025-07-03 01:40:55', NULL, '真的煩', 0);
 
 -- --------------------------------------------------------
 
 --
--- 資料表結構 `effect`
+-- 表的结构 `effect`
 --
 
 CREATE TABLE `effect` (
@@ -107,7 +127,7 @@ CREATE TABLE `effect` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
--- 傾印資料表的資料 `effect`
+-- 转存表中的数据 `effect`
 --
 
 INSERT INTO `effect` (`id`, `name`) VALUES
@@ -143,7 +163,7 @@ INSERT INTO `effect` (`id`, `name`) VALUES
 -- --------------------------------------------------------
 
 --
--- 資料表結構 `emoji`
+-- 表的结构 `emoji`
 --
 
 CREATE TABLE `emoji` (
@@ -155,7 +175,7 @@ CREATE TABLE `emoji` (
 -- --------------------------------------------------------
 
 --
--- 資料表結構 `now`
+-- 表的结构 `now`
 --
 
 CREATE TABLE `now` (
@@ -168,13 +188,22 @@ CREATE TABLE `now` (
   `anxiety` float DEFAULT 0,
   `exhaust` float DEFAULT 0,
   `note` text DEFAULT NULL,
-  `create_at` datetime DEFAULT current_timestamp()
+  `create_at` datetime DEFAULT current_timestamp(),
+  `details` text DEFAULT NULL,
+  `is_english` tinyint(1) DEFAULT 0
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- 转存表中的数据 `now`
+--
+
+INSERT INTO `now` (`id`, `user_id`, `joy`, `sadness`, `anger`, `positive`, `anxiety`, `exhaust`, `note`, `create_at`, `details`, `is_english`) VALUES
+(1, 4, 0, 0, 0, 0, 80.6143, 0, '啊啊啊啊', '2025-07-03 01:40:32', '', 0);
 
 -- --------------------------------------------------------
 
 --
--- 資料表結構 `oil`
+-- 表的结构 `oil`
 --
 
 CREATE TABLE `oil` (
@@ -186,7 +215,7 @@ CREATE TABLE `oil` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
--- 傾印資料表的資料 `oil`
+-- 转存表中的数据 `oil`
 --
 
 INSERT INTO `oil` (`id`, `name`, `meaning`, `effect`, `image_url`) VALUES
@@ -226,7 +255,7 @@ INSERT INTO `oil` (`id`, `name`, `meaning`, `effect`, `image_url`) VALUES
 -- --------------------------------------------------------
 
 --
--- 資料表結構 `oil_effect`
+-- 表的结构 `oil_effect`
 --
 
 CREATE TABLE `oil_effect` (
@@ -235,7 +264,7 @@ CREATE TABLE `oil_effect` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
--- 傾印資料表的資料 `oil_effect`
+-- 转存表中的数据 `oil_effect`
 --
 
 INSERT INTO `oil_effect` (`oil_id`, `effect_id`) VALUES
@@ -538,7 +567,7 @@ INSERT INTO `oil_effect` (`oil_id`, `effect_id`) VALUES
 -- --------------------------------------------------------
 
 --
--- 資料表結構 `robot_chat`
+-- 表的结构 `robot_chat`
 --
 
 CREATE TABLE `robot_chat` (
@@ -551,7 +580,7 @@ CREATE TABLE `robot_chat` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
--- 傾印資料表的資料 `robot_chat`
+-- 转存表中的数据 `robot_chat`
 --
 
 INSERT INTO `robot_chat` (`id`, `user_id`, `summary`, `keywords`, `emotion_tag`, `create_at`) VALUES
@@ -560,7 +589,7 @@ INSERT INTO `robot_chat` (`id`, `user_id`, `summary`, `keywords`, `emotion_tag`,
 -- --------------------------------------------------------
 
 --
--- 資料表結構 `robot_chat_history`
+-- 表的结构 `robot_chat_history`
 --
 
 CREATE TABLE `robot_chat_history` (
@@ -573,7 +602,7 @@ CREATE TABLE `robot_chat_history` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
 
 --
--- 傾印資料表的資料 `robot_chat_history`
+-- 转存表中的数据 `robot_chat_history`
 --
 
 INSERT INTO `robot_chat_history` (`id`, `user_id`, `conversation`, `role`, `content`, `create_at`) VALUES
@@ -636,7 +665,7 @@ INSERT INTO `robot_chat_history` (`id`, `user_id`, `conversation`, `role`, `cont
 -- --------------------------------------------------------
 
 --
--- 資料表結構 `users`
+-- 表的结构 `users`
 --
 
 CREATE TABLE `users` (
@@ -650,16 +679,17 @@ CREATE TABLE `users` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
--- 傾印資料表的資料 `users`
+-- 转存表中的数据 `users`
 --
 
 INSERT INTO `users` (`id`, `auth_user_id`, `name`, `photo`, `created_at`, `oil_id`, `favorite_music`) VALUES
-(3, 1, '測試帳號', NULL, '2025-07-02 15:08:57', NULL, NULL);
+(3, 1, '測試帳號', NULL, '2025-07-02 15:08:57', NULL, NULL),
+(4, 2, NULL, NULL, '2025-07-03 00:42:51', NULL, NULL);
 
 -- --------------------------------------------------------
 
 --
--- 資料表結構 `user_preferences`
+-- 表的结构 `user_preferences`
 --
 
 CREATE TABLE `user_preferences` (
@@ -674,7 +704,7 @@ CREATE TABLE `user_preferences` (
 -- --------------------------------------------------------
 
 --
--- 資料表結構 `white_noise`
+-- 表的结构 `white_noise`
 --
 
 CREATE TABLE `white_noise` (
@@ -684,30 +714,31 @@ CREATE TABLE `white_noise` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
--- 已傾印資料表的索引
+-- 转储表的索引
 --
 
 --
--- 資料表索引 `auth_users`
+-- 表的索引 `auth_users`
 --
 ALTER TABLE `auth_users`
-  ADD PRIMARY KEY (`id`);
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `firebase_uid` (`firebase_uid`);
 
 --
--- 資料表索引 `breath_record`
+-- 表的索引 `breath_record`
 --
 ALTER TABLE `breath_record`
   ADD PRIMARY KEY (`id`),
   ADD KEY `user_id` (`user_id`);
 
 --
--- 資料表索引 `color`
+-- 表的索引 `color`
 --
 ALTER TABLE `color`
   ADD PRIMARY KEY (`id`);
 
 --
--- 資料表索引 `diaries`
+-- 表的索引 `diaries`
 --
 ALTER TABLE `diaries`
   ADD PRIMARY KEY (`id`),
@@ -715,52 +746,52 @@ ALTER TABLE `diaries`
   ADD KEY `fk_diaries_oil` (`oil_id`);
 
 --
--- 資料表索引 `effect`
+-- 表的索引 `effect`
 --
 ALTER TABLE `effect`
   ADD PRIMARY KEY (`id`);
 
 --
--- 資料表索引 `emoji`
+-- 表的索引 `emoji`
 --
 ALTER TABLE `emoji`
   ADD PRIMARY KEY (`id`);
 
 --
--- 資料表索引 `now`
+-- 表的索引 `now`
 --
 ALTER TABLE `now`
   ADD PRIMARY KEY (`id`),
   ADD KEY `user_id` (`user_id`);
 
 --
--- 資料表索引 `oil`
+-- 表的索引 `oil`
 --
 ALTER TABLE `oil`
   ADD PRIMARY KEY (`id`);
 
 --
--- 資料表索引 `oil_effect`
+-- 表的索引 `oil_effect`
 --
 ALTER TABLE `oil_effect`
   ADD PRIMARY KEY (`oil_id`,`effect_id`),
   ADD KEY `effect_id` (`effect_id`);
 
 --
--- 資料表索引 `robot_chat`
+-- 表的索引 `robot_chat`
 --
 ALTER TABLE `robot_chat`
   ADD PRIMARY KEY (`id`),
   ADD KEY `user_id` (`user_id`);
 
 --
--- 資料表索引 `robot_chat_history`
+-- 表的索引 `robot_chat_history`
 --
 ALTER TABLE `robot_chat_history`
   ADD PRIMARY KEY (`id`);
 
 --
--- 資料表索引 `users`
+-- 表的索引 `users`
 --
 ALTER TABLE `users`
   ADD PRIMARY KEY (`id`),
@@ -769,138 +800,138 @@ ALTER TABLE `users`
   ADD KEY `fk_users_white_noise` (`favorite_music`);
 
 --
--- 資料表索引 `user_preferences`
+-- 表的索引 `user_preferences`
 --
 ALTER TABLE `user_preferences`
   ADD PRIMARY KEY (`id`),
   ADD KEY `user_id` (`user_id`);
 
 --
--- 資料表索引 `white_noise`
+-- 表的索引 `white_noise`
 --
 ALTER TABLE `white_noise`
   ADD PRIMARY KEY (`id`);
 
 --
--- 在傾印的資料表使用自動遞增(AUTO_INCREMENT)
+-- 在导出的表使用AUTO_INCREMENT
 --
 
 --
--- 使用資料表自動遞增(AUTO_INCREMENT) `auth_users`
+-- 使用表AUTO_INCREMENT `auth_users`
 --
 ALTER TABLE `auth_users`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
 
 --
--- 使用資料表自動遞增(AUTO_INCREMENT) `breath_record`
+-- 使用表AUTO_INCREMENT `breath_record`
 --
 ALTER TABLE `breath_record`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
 
 --
--- 使用資料表自動遞增(AUTO_INCREMENT) `color`
+-- 使用表AUTO_INCREMENT `color`
 --
 ALTER TABLE `color`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
 --
--- 使用資料表自動遞增(AUTO_INCREMENT) `diaries`
+-- 使用表AUTO_INCREMENT `diaries`
 --
 ALTER TABLE `diaries`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
 
 --
--- 使用資料表自動遞增(AUTO_INCREMENT) `effect`
+-- 使用表AUTO_INCREMENT `effect`
 --
 ALTER TABLE `effect`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=29;
 
 --
--- 使用資料表自動遞增(AUTO_INCREMENT) `emoji`
+-- 使用表AUTO_INCREMENT `emoji`
 --
 ALTER TABLE `emoji`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
 --
--- 使用資料表自動遞增(AUTO_INCREMENT) `now`
+-- 使用表AUTO_INCREMENT `now`
 --
 ALTER TABLE `now`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 --
--- 使用資料表自動遞增(AUTO_INCREMENT) `oil`
+-- 使用表AUTO_INCREMENT `oil`
 --
 ALTER TABLE `oil`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=33;
 
 --
--- 使用資料表自動遞增(AUTO_INCREMENT) `robot_chat`
+-- 使用表AUTO_INCREMENT `robot_chat`
 --
 ALTER TABLE `robot_chat`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
 
 --
--- 使用資料表自動遞增(AUTO_INCREMENT) `robot_chat_history`
+-- 使用表AUTO_INCREMENT `robot_chat_history`
 --
 ALTER TABLE `robot_chat_history`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=56;
 
 --
--- 使用資料表自動遞增(AUTO_INCREMENT) `users`
+-- 使用表AUTO_INCREMENT `users`
 --
 ALTER TABLE `users`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
 
 --
--- 使用資料表自動遞增(AUTO_INCREMENT) `user_preferences`
+-- 使用表AUTO_INCREMENT `user_preferences`
 --
 ALTER TABLE `user_preferences`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
 --
--- 使用資料表自動遞增(AUTO_INCREMENT) `white_noise`
+-- 使用表AUTO_INCREMENT `white_noise`
 --
 ALTER TABLE `white_noise`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
 --
--- 已傾印資料表的限制式
+-- 限制导出的表
 --
 
 --
--- 資料表的限制式 `breath_record`
+-- 限制表 `breath_record`
 --
 ALTER TABLE `breath_record`
   ADD CONSTRAINT `breath_record_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE;
 
 --
--- 資料表的限制式 `diaries`
+-- 限制表 `diaries`
 --
 ALTER TABLE `diaries`
   ADD CONSTRAINT `diaries_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
   ADD CONSTRAINT `fk_diaries_oil` FOREIGN KEY (`oil_id`) REFERENCES `oil` (`id`);
 
 --
--- 資料表的限制式 `now`
+-- 限制表 `now`
 --
 ALTER TABLE `now`
   ADD CONSTRAINT `now_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE;
 
 --
--- 資料表的限制式 `oil_effect`
+-- 限制表 `oil_effect`
 --
 ALTER TABLE `oil_effect`
   ADD CONSTRAINT `oil_effect_ibfk_1` FOREIGN KEY (`oil_id`) REFERENCES `oil` (`id`),
   ADD CONSTRAINT `oil_effect_ibfk_2` FOREIGN KEY (`effect_id`) REFERENCES `effect` (`id`);
 
 --
--- 資料表的限制式 `robot_chat`
+-- 限制表 `robot_chat`
 --
 ALTER TABLE `robot_chat`
   ADD CONSTRAINT `robot_chat_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE;
 
 --
--- 資料表的限制式 `users`
+-- 限制表 `users`
 --
 ALTER TABLE `users`
   ADD CONSTRAINT `fk_users_oil` FOREIGN KEY (`oil_id`) REFERENCES `oil` (`id`),
@@ -908,7 +939,7 @@ ALTER TABLE `users`
   ADD CONSTRAINT `users_ibfk_1` FOREIGN KEY (`auth_user_id`) REFERENCES `auth_users` (`id`) ON DELETE CASCADE;
 
 --
--- 資料表的限制式 `user_preferences`
+-- 限制表 `user_preferences`
 --
 ALTER TABLE `user_preferences`
   ADD CONSTRAINT `user_preferences_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE;

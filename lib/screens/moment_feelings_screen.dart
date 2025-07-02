@@ -77,7 +77,15 @@ class MomentFeelingsScreenState extends State<MomentFeelingsScreen> {
                   isEnglish: widget.isEnglish,
                   onEmotionSelected: (emotions) {
                     setState(() {
-                      _selectedEmotions = emotions;
+                      _selectedEmotions =
+                          emotions
+                              .map(
+                                (e) => {
+                                  'emotion': e['emotion'],
+                                  'intensity': e['intensity'],
+                                },
+                              )
+                              .toList();
                     });
                   },
                 )
@@ -104,7 +112,7 @@ class MomentFeelingsScreenState extends State<MomentFeelingsScreen> {
                               : '為什麼有這種情緒？',
                       border: const OutlineInputBorder(),
                       filled: true,
-                      fillColor: Colors.blue.withValues(alpha: 0.05),
+                      fillColor: Colors.blue.withValues(alpha: 13),
                     ),
                     onChanged: (text) {
                       moodText = text;
@@ -130,7 +138,7 @@ class MomentFeelingsScreenState extends State<MomentFeelingsScreen> {
                               : '更多細節（可選）',
                       border: const OutlineInputBorder(),
                       filled: true,
-                      fillColor: Colors.blue.withValues(alpha: 0.05),
+                      fillColor: Colors.blue.withValues(alpha: 13),
                     ),
                     maxLines: null,
                     minLines: 3,
@@ -169,15 +177,12 @@ class MomentFeelingsScreenState extends State<MomentFeelingsScreen> {
                       );
                     }
 
-                    final mixedColorWithAlpha = mixColorsWithAlpha(
-                      _selectedEmotions,
-                    );
                     try {
                       await _apiClient.saveDiaryEntry(
                         date: widget.date,
                         type: 'Moment',
                         emotions: _selectedEmotions,
-                        mixedColor: mixedColorWithAlpha,
+                        mixedColor: null, // Moment 不使用 mixedColor
                         moodText: moodText,
                         details: _detailsController.text,
                         isEnglish: widget.isEnglish,

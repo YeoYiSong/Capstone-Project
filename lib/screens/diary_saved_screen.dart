@@ -16,8 +16,10 @@ class DiarySavedScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorValue = int.parse(mixedColor.replaceFirst('#', ''), radix: 16);
-    final mixedColorValue = Color(colorValue);
+    final Color mixedColorValue =
+        mixedColor.isNotEmpty
+            ? Color(int.parse(mixedColor.replaceFirst('#', ''), radix: 16))
+            : Colors.blue.withAlpha((0.05 * 255).toInt()); // 預設顏色
 
     return Scaffold(
       appBar: AppBar(
@@ -58,7 +60,7 @@ class DiarySavedScreen extends StatelessWidget {
                 ),
                 child: Center(
                   child: Text(
-                    mixedColor,
+                    mixedColor.isNotEmpty ? mixedColor : 'N/A',
                     style: const TextStyle(color: Colors.white, fontSize: 12),
                   ),
                 ),

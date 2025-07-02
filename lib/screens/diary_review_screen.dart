@@ -4,7 +4,7 @@ import 'package:table_calendar/table_calendar.dart';
 import 'diary_locked_screen.dart';
 import 'moment_feelings_screen.dart';
 import 'day_feelings_screen.dart';
-import '../utils/api_client.dart'; // 改為使用 api_client.dart
+import '../utils/api_client.dart';
 
 class DiaryReviewScreen extends StatefulWidget {
   final bool isDiaryLocked;
@@ -27,7 +27,7 @@ class DiaryReviewScreenState extends State<DiaryReviewScreen> {
   DateTime _focusedDay = DateTime.now();
   List<DiaryEntry> _diaryEntries = [];
   Map<DateTime, String> _dayColors = {};
-  final ApiClient _apiClient = ApiClient(); // 使用 ApiClient
+  final ApiClient _apiClient = ApiClient();
 
   @override
   void initState() {

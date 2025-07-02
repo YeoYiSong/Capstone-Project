@@ -114,22 +114,42 @@ def register_user_if_not_exists():
         cursor.close()
         connection.close()
         
-#日記模組
+# 日記模組
 @app.route('/save_diary_entry', methods=['POST'])
 def save_diary_entry():
     data = request.get_json()
+    user_id = data.get('user_id')
     date = data.get('date')
     type = data.get('type')
-    emotions = json.dumps(data.get('emotions'))
-    mixed_color = data.get('mixedColor')
-    mood_text = data.get('moodText')
+    emotions = data.get('emotions')
+    mixed_color = data.get('mixed_color')  # 統一為 mixed_color
+    mood_text = data.get('mood_text')      # 統一為 mood_text
     details = data.get('details')
-    is_english = 1 if data.get('isEnglish') else 0
+    is_english = data.get('is_english', False)  # 統一為 is_english
+
+    if not user_id or not date or not type or not emotions:
+        return jsonify({'error': 'Missing required fields'}), 400
+    if type not in ['Moment', 'Day']:
+        return jsonify({'error': 'Invalid entry type'}), 400
+
+    # 映射情緒
+    emotion_map = {
+        '快樂': 'joy', 'joy': 'joy',
+        '悲傷': 'sadness', 'sadness': 'sadness',
+        '憤怒': 'anger', 'anger': 'anger',
+        '積極': 'positive', 'positive': 'positive',
+        '焦慮': 'anxiety', 'anxiety': 'anxiety',
+        '疲憊': 'exhaust', 'exhaust': 'exhaust'
+    }
+    emotion_values = {'joy': 0, 'sadness': 0, 'anger': 0, 'positive': 0, 'anxiety': 0, 'exhaust': 0}
+    for emotion in emotions:
+        emotion_name = emotion.get('emotion')
+        intensity = float(emotion.get('intensity', 0))
+        if emotion_name in emotion_map:
+            emotion_values[emotion_map[emotion_name]] = intensity
 
     try:
-        dt = datetime.fromisoformat(date.replace('Z', '+00:00'))
-        entry_date = dt.date().isoformat()
-        entry_time = dt.time().strftime('%H:%M:%S')
+        create_at = datetime.fromisoformat(date.replace('Z', '+00:00')).strftime('%Y-%m-%d %H:%M:%S')
     except ValueError as e:
         return jsonify({'error': f'Invalid date format: {e}'}), 400
 
@@ -139,11 +159,43 @@ def save_diary_entry():
 
     try:
         cursor = connection.cursor()
-        query = """
-        INSERT INTO diary_entries (entry_date, entry_time, entry_type, emotions, mixed_color, mood_text, details, is_english)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-        """
-        cursor.execute(query, (entry_date, entry_time, type, emotions, mixed_color, mood_text, details, is_english))
+        if type == 'Day':
+            query = """
+            INSERT INTO diaries (user_id, content, joy, sadness, anger, positive, anxiety, exhaust, color_mix, create_at, is_english, details)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """
+            cursor.execute(query, (
+                user_id,
+                mood_text or '',
+                emotion_values['joy'],
+                emotion_values['sadness'],
+                emotion_values['anger'],
+                emotion_values['positive'],
+                emotion_values['anxiety'],
+                emotion_values['exhaust'],
+                mixed_color,
+                create_at,
+                is_english,
+                details or ''
+            ))
+        else:  # Moment
+            query = """
+            INSERT INTO now (user_id, note, joy, sadness, anger, positive, anxiety, exhaust, create_at, is_english, details)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """
+            cursor.execute(query, (
+                user_id,
+                mood_text or '',
+                emotion_values['joy'],
+                emotion_values['sadness'],
+                emotion_values['anger'],
+                emotion_values['positive'],
+                emotion_values['anxiety'],
+                emotion_values['exhaust'],
+                create_at,
+                is_english,
+                details or ''
+            ))
         connection.commit()
         return jsonify({'message': 'Diary entry saved successfully'}), 200
     except Error as e:
@@ -154,6 +206,10 @@ def save_diary_entry():
 
 @app.route('/get_diary_entries/<date>', methods=['GET'])
 def get_diary_entries(date):
+    user_id = request.args.get('user_id')
+    if not user_id:
+        return jsonify({'error': 'Missing user_id'}), 400
+
     try:
         entry_date = datetime.strptime(date, '%Y-%m-%d').date().isoformat()
     except ValueError as e:
@@ -165,13 +221,41 @@ def get_diary_entries(date):
 
     try:
         cursor = connection.cursor(dictionary=True)
-        query = "SELECT * FROM diary_entries WHERE entry_date = %s"
-        cursor.execute(query, (entry_date,))
-        entries = cursor.fetchall()
+        # 查詢 diaries
+        query_diaries = """
+        SELECT id, user_id, content AS mood_text, joy, sadness, anger, positive, anxiety, exhaust, 
+               color_mix AS mixed_color, create_at, is_english, details
+        FROM diaries WHERE user_id = %s AND DATE(create_at) = %s
+        """
+        cursor.execute(query_diaries, (user_id, entry_date))
+        day_entries = cursor.fetchall()
+
+        # 查詢 now
+        query_now = """
+        SELECT id, user_id, note AS mood_text, joy, sadness, anger, positive, anxiety, exhaust, 
+               NULL AS mixed_color, create_at, is_english, details
+        FROM now WHERE user_id = %s AND DATE(create_at) = %s
+        """
+        cursor.execute(query_now, (user_id, entry_date))
+        moment_entries = cursor.fetchall()
+
+        # 合併並格式化
+        entries = day_entries + moment_entries
         for entry in entries:
-            entry['entry_date'] = entry['entry_date'].isoformat()
-            entry['entry_time'] = entry['entry_time'].strftime('%H:%M:%S')
-            entry['is_english'] = bool(entry['is_english'])
+            entry['entry_type'] = 'Day' if entry['mixed_color'] is not None else 'Moment'
+            entry['entry_date'] = entry['create_at'].date().isoformat()
+            entry['entry_time'] = entry['create_at'].strftime('%H:%M:%S')
+            entry['emotions'] = [
+                {'emotion': '快樂' if not entry['is_english'] else 'joy', 'intensity': float(entry['joy'])},
+                {'emotion': '悲傷' if not entry['is_english'] else 'sadness', 'intensity': float(entry['sadness'])},
+                {'emotion': '憤怒' if not entry['is_english'] else 'anger', 'intensity': float(entry['anger'])},
+                {'emotion': '積極' if not entry['is_english'] else 'positive', 'intensity': float(entry['positive'])},
+                {'emotion': '焦慮' if not entry['is_english'] else 'anxiety', 'intensity': float(entry['anxiety'])},
+                {'emotion': '疲憊' if not entry['is_english'] else 'exhaust', 'intensity': float(entry['exhaust'])}
+            ]
+            for field in ['joy', 'sadness', 'anger', 'positive', 'anxiety', 'exhaust']:
+                del entry[field]
+
         return jsonify(entries), 200
     except Error as e:
         return jsonify({'error': f'Failed to fetch diary entries: {e}'}), 500
@@ -181,26 +265,56 @@ def get_diary_entries(date):
 
 @app.route('/get_all_diary_entries', methods=['GET'])
 def get_all_diary_entries():
+    user_id = request.args.get('user_id')
+    if not user_id:
+        return jsonify({'error': 'Missing user_id'}), 400
+
     connection = get_db_connection()
     if connection is None:
         return jsonify({'error': 'Failed to connect to database'}), 500
 
     try:
         cursor = connection.cursor(dictionary=True)
-        query = "SELECT * FROM diary_entries"
-        cursor.execute(query)
-        entries = cursor.fetchall()
+        query_diaries = """
+        SELECT id, user_id, content AS mood_text, joy, sadness, anger, positive, anxiety, exhaust, 
+               color_mix AS mixed_color, create_at, is_english, details
+        FROM diaries WHERE user_id = %s
+        """
+        cursor.execute(query_diaries, (user_id,))
+        day_entries = cursor.fetchall()
+
+        query_now = """
+        SELECT id, user_id, note AS mood_text, joy, sadness, anger, positive, anxiety, exhaust, 
+               NULL AS mixed_color, create_at, is_english, details
+        FROM now WHERE user_id = %s
+        """
+        cursor.execute(query_now, (user_id,))
+        moment_entries = cursor.fetchall()
+
+        entries = day_entries + moment_entries
         for entry in entries:
-            entry['entry_date'] = entry['entry_date'].isoformat()
-            entry['entry_time'] = entry['entry_time'].strftime('%H:%M:%S')
-            entry['is_english'] = bool(entry['is_english'])
+            entry['entry_type'] = 'Day' if entry['mixed_color'] is not None else 'Moment'
+            entry['entry_date'] = entry['create_at'].date().isoformat()
+            entry['entry_time'] = entry['create_at'].strftime('%H:%M:%S')
+            entry['emotions'] = [
+                {'emotion': '快樂' if not entry['is_english'] else 'joy', 'intensity': float(entry['joy'])},
+                {'emotion': '悲傷' if not entry['is_english'] else 'sadness', 'intensity': float(entry['sadness'])},
+                {'emotion': '憤怒' if not entry['is_english'] else 'anger', 'intensity': float(entry['anger'])},
+                {'emotion': '積極' if not entry['is_english'] else 'positive', 'intensity': float(entry['positive'])},
+                {'emotion': '焦慮' if not entry['is_english'] else 'anxiety', 'intensity': float(entry['anxiety'])},
+                {'emotion': '疲憊' if not entry['is_english'] else 'exhaust', 'intensity': float(entry['exhaust'])}
+            ]
+            for field in ['joy', 'sadness', 'anger', 'positive', 'anxiety', 'exhaust']:
+                del entry[field]
+
         return jsonify(entries), 200
     except Error as e:
         return jsonify({'error': f'Failed to fetch diary entries: {e}'}), 500
     finally:
         cursor.close()
         connection.close()
-#呼吸模組
+
+# 呼吸模組
 @app.route('/breath_record', methods=['POST'])
 def add_breath_record():
     data = request.get_json()
@@ -234,6 +348,10 @@ def add_breath_record():
 
 @app.route('/breath_record/<date>', methods=['GET'])
 def get_breath_records_by_date(date):
+    user_id = request.args.get('user_id')
+    if not user_id:
+        return jsonify({'error': 'Missing user_id'}), 400
+
     try:
         entry_date = datetime.strptime(date, '%Y-%m-%d').date().isoformat()
     except ValueError as e:
@@ -245,8 +363,8 @@ def get_breath_records_by_date(date):
 
     try:
         cursor = connection.cursor(dictionary=True)
-        query = "SELECT * FROM breath_record WHERE DATE(create_at) = %s"
-        cursor.execute(query, (entry_date,))
+        query = "SELECT * FROM breath_record WHERE user_id = %s AND DATE(create_at) = %s"
+        cursor.execute(query, (user_id, entry_date))
         records = cursor.fetchall()
         return jsonify(records), 200
     except Error as e:

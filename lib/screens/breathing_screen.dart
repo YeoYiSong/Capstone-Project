@@ -44,7 +44,7 @@ class BreathingScreenState extends State<BreathingScreen> {
 
       final uid = user.uid;
       final response = await http.post(
-        Uri.parse('${_apiClient.baseUrl}/get_user_id'),
+        Uri.parse('${ApiClient.baseUrl}/get_user_id'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'firebase_uid': uid}),
       );

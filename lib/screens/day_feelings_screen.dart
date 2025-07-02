@@ -242,9 +242,7 @@ class DayFeelingsScreenState extends State<DayFeelingsScreen> {
                     void showErrorSnackBar(Exception e) {
                       if (!mounted) return;
                       ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('Failed to save moment entry: $e'),
-                        ),
+                        SnackBar(content: Text('Failed to save day entry: $e')),
                       );
                     }
 
@@ -254,7 +252,7 @@ class DayFeelingsScreenState extends State<DayFeelingsScreen> {
                     try {
                       await _apiClient.saveDiaryEntry(
                         date: widget.date,
-                        type: 'Moment',
+                        type: 'Day', // 修正：從 'Moment' 改為 'Day'
                         emotions: _selectedEmotions,
                         mixedColor: mixedColorWithAlpha,
                         moodText: moodText,
@@ -264,7 +262,7 @@ class DayFeelingsScreenState extends State<DayFeelingsScreen> {
                       navigateToSavedScreen();
                     } catch (e) {
                       if (kDebugMode) {
-                        print('Error saving moment entry: $e');
+                        print('Error saving day entry: $e');
                       }
                       showErrorSnackBar(e as Exception);
                     }

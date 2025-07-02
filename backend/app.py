@@ -1,12 +1,19 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, render_template, session, Response, stream_with_context
 from flask_cors import CORS
 import mysql.connector
 from mysql.connector import Error
 import json
 from datetime import datetime
+from flask_session import Session
+import requests
+
+
 
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
+app.config['SECRET_KEY'] = 'replace_with_your_own_secret_key'
+app.config['SESSION_TYPE'] = 'filesystem'
+Session(app)
 
 db_config = {
     'host': 'localhost',
@@ -288,6 +295,281 @@ def update_breath_felling():
         return jsonify({'message': 'Felling updated successfully'}), 200
     except Error as e:
         return jsonify({'error': f'Failed to update felling: {e}'}), 500
+    finally:
+        cursor.close()
+        connection.close()
+
+# 聊天機器人模組
+OLLAMA_API_URL = 'http://localhost:11434/api/chat'
+
+# === User/Session 工具 ===
+def get_user_id():
+    user_id = session.get('user_id')
+    if not user_id:
+        if request.method == 'POST':
+            try:
+                user_id = (request.json or {}).get('user_id')
+            except Exception:
+                user_id = None
+        else:
+            user_id = request.args.get('user_id')
+    return int(user_id) if user_id else 0
+
+def get_current_name():
+    uid = get_user_id()
+    key = f'current_conv_{uid}'
+    return session.get(key, 'default')
+
+def set_current_name(conv_name):
+    uid = get_user_id()
+    session[f'current_conv_{uid}'] = conv_name
+
+def get_messages():
+    uid = get_user_id()
+    key = f'messages_{uid}_{get_current_name()}'
+    return session.setdefault(key, [])
+
+def save_messages(messages):
+    uid = get_user_id()
+    key = f'messages_{uid}_{get_current_name()}'
+    session[key] = messages
+
+def save_message_to_db(user_id, conversation, role, content):
+    connection = get_db_connection()
+    if not connection:
+        return
+    try:
+        cursor = connection.cursor()
+        sql = "INSERT INTO robot_chat_history (user_id, conversation, role, content) VALUES (%s, %s, %s, %s)"
+        cursor.execute(sql, (user_id, conversation, role, content))
+        connection.commit()
+    except Exception as e:
+        print(f"[DB] 儲存對話失敗: {e}")
+    finally:
+        cursor.close()
+        connection.close()
+
+def update_conversation_name(user_id, old_name, new_name):
+    connection = get_db_connection()
+    if not connection:
+        return
+    try:
+        cursor = connection.cursor()
+        sql = "UPDATE robot_chat_history SET conversation=%s WHERE user_id=%s AND conversation=%s"
+        cursor.execute(sql, (new_name, user_id, old_name))
+        connection.commit()
+    except Exception as e:
+        print(f"[DB] 更新對話名稱失敗: {e}")
+    finally:
+        cursor.close()
+        connection.close()
+
+def ai_generate_title(first_message):
+    payload = {
+        "model": "gemma3:12b",
+        "messages": [
+            {
+                "role": "system",
+                "content":  "你是一個對話標題產生器。"
+                            "請你根據下方訊息內容，**只回一個 8~16 字內的明確主題作為標題**，不要多加解釋、不要加入任何標點符號，也不要問問題。"
+                            "直接列出主題即可，例如：『工作壓力抒發』、『與朋友聚餐心得』、『心情低落的週末』。"
+            },
+            {
+                "role": "user",
+                "content": first_message
+            }
+        ],
+        "stream": False
+    }
+    try:
+        res = requests.post(OLLAMA_API_URL, json=payload, timeout=60)
+        data = res.json()
+        title = data.get("message", {}).get("content", "").strip().replace('\n', '')
+        return title[:16] if title else "未命名聊天室"
+    except Exception:
+        return "未命名聊天室"
+
+@app.route('/switch', methods=['POST'])
+def switch_conversation():
+    user_id = get_user_id()
+    name = request.json.get('conversation', '').strip() or 'default'
+    session[f'ai_titled_{user_id}'] = not name.startswith('untitled_')
+    set_current_name(name)
+    key = f'messages_{user_id}_{name}'
+    if key not in session:
+        session[key] = []
+    return jsonify({'status': 'switched', 'conversation': name})
+
+@app.route('/reset', methods=['POST'])
+def reset_conversation():
+    user_id = get_user_id()
+    key = f'messages_{user_id}_{get_current_name()}'
+    session[key] = []
+    return jsonify({'status': 'cleared', 'conversation': get_current_name()})
+
+@app.route('/conversations', methods=['GET'])
+def list_conversations():
+    user_id = get_user_id()
+    connection = get_db_connection()
+    if not connection:
+        return jsonify({'conversations': [], 'current': ''})
+    try:
+        cursor = connection.cursor()
+        sql = "SELECT DISTINCT conversation FROM robot_chat_history WHERE user_id=%s"
+        cursor.execute(sql, (user_id,))
+        conversations = [row[0] for row in cursor.fetchall()]
+        current = session.get(f'current_conv_{user_id}', 'default')
+        if current not in conversations:
+            conversations.append(current)
+        return jsonify({
+            'conversations': conversations,
+            'current': current
+        })
+    finally:
+        cursor.close()
+        connection.close()
+
+@app.route('/history', methods=['GET'])
+def get_history():
+    user_id = get_user_id()
+    conversation = get_current_name()
+    connection = get_db_connection()
+    if not connection:
+        return jsonify({'history': []})
+    try:
+        cursor = connection.cursor()
+        sql = "SELECT role, content FROM robot_chat_history WHERE user_id=%s AND conversation=%s ORDER BY id"
+        cursor.execute(sql, (user_id, conversation))
+        rows = cursor.fetchall()
+        history = [
+            {'role': role, 'content': content}
+            for (role, content) in rows
+            if content and content.strip()
+        ]
+        return jsonify({'history': history})
+    finally:
+        cursor.close()
+        connection.close()
+
+@app.route('/chat', methods=['POST'])
+def chat():
+    user_id = get_user_id()
+    user_message = request.json.get('message', '').strip()
+    conversation = get_current_name()
+    is_new_conv = conversation.startswith("untitled_")
+    ai_titled = session.get(f'ai_titled_{user_id}', False)
+
+    if not user_message:
+        return Response('', content_type='text/plain')
+
+    messages = get_messages()
+    if not messages:
+        messages.append({
+            'role': 'system',
+            'content': (
+                '你是一位親切、有耐心的朋友，請用繁體中文和我聊天。'
+                '不用太正式，像平常朋友聊天一樣就好，溫暖、有共鳴，讓我覺得被理解就好。'
+            )
+        })
+
+    messages.append({'role': 'user', 'content': user_message})
+    save_message_to_db(user_id, conversation, 'user', user_message)
+
+    if is_new_conv and not ai_titled:
+        title = ai_generate_title(user_message)
+        update_conversation_name(user_id, conversation, title)
+        set_current_name(title)
+        session[f'ai_titled_{user_id}'] = True
+        session[f'messages_{user_id}_{title}'] = session.pop(f'messages_{user_id}_{conversation}')
+        conversation = title
+
+    trimmed = [m for m in messages if m['role'] != 'system']
+    session_msgs = messages[:1] + trimmed[-6:]
+    save_messages(messages)
+
+    payload = {
+        'model': 'gemma3:12b',
+        'messages': session_msgs,
+        'stream': True
+    }
+
+    full_response = {'value': ''}
+
+    @stream_with_context
+    def generate():
+        try:
+            with requests.post(OLLAMA_API_URL, json=payload, stream=True, timeout=180) as r:
+                for line in r.iter_lines():
+                    if not line:
+                        continue
+                    try:
+                        data = json.loads(line.decode('utf-8'))
+                        chunk = data.get('message', {}).get('content', '')
+                    except json.JSONDecodeError:
+                        chunk = '[解析錯誤]'
+                    full_response['value'] += chunk
+                    yield chunk
+        except Exception as e:
+            yield f'[連線錯誤：{e}]'
+
+        if full_response['value'].strip():
+            msgs = get_messages()
+            msgs.append({'role': 'assistant', 'content': full_response['value']})
+            save_messages(msgs)
+            save_message_to_db(user_id, conversation, 'assistant', full_response['value'])
+
+    return Response(generate(), content_type='text/plain')
+
+@app.route('/finalize', methods=['POST'])
+def finalize_conversation():
+    user_id = get_user_id()
+    messages = get_messages()
+    if not messages:
+        return jsonify({'status': 'no_messages'})
+    summary = generate_summary(messages)
+    save_summary_to_db(user_id, summary)
+    return jsonify({'status': 'summary_saved', 'summary': summary})
+
+def generate_summary(messages):
+    full_content = ''
+    for m in messages:
+        role = "你" if m["role"] == "user" else "AI"
+        full_content += f"{role}：{m['content']}\n"
+    summary_prompt = [
+        {
+            "role": "system",
+            "content": (
+                "請你扮演摘要助手，針對以下對話內容，用一句話摘要這段對話的情緒或主旨。"
+                "不要安慰、不要延續回應，直接給出明確、簡潔的總結即可。"
+            )
+        },
+        {
+            "role": "user",
+            "content": full_content.strip()
+        }
+    ]
+    payload = {
+        "model": "gemma3:12b",
+        "messages": summary_prompt,
+        "stream": False
+    }
+    try:
+        res = requests.post(OLLAMA_API_URL, json=payload, timeout=60)
+        data = res.json()
+        return data.get("message", {}).get("content", "").strip()
+    except Exception as e:
+        return f"[摘要失敗：{e}]"
+
+def save_summary_to_db(user_id, summary):
+    connection = get_db_connection()
+    if not connection:
+        return
+    try:
+        cursor = connection.cursor()
+        sql = "INSERT INTO robot_chat (user_id, summary, keywords, emotion_tag) VALUES (%s, %s, %s, %s)"
+        val = (user_id, summary, '', '')
+        cursor.execute(sql, val)
+        connection.commit()
     finally:
         cursor.close()
         connection.close()

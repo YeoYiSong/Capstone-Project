@@ -14,7 +14,6 @@ CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
 app.config['SECRET_KEY'] = 'replace_with_your_own_secret_key'
 app.config['SESSION_TYPE'] = 'filesystem'
 Session(app)
-
 db_config = {
     'host': 'localhost',
     'port': 3306,
@@ -298,7 +297,6 @@ def update_breath_felling():
     finally:
         cursor.close()
         connection.close()
-
 # 聊天機器人模組
 OLLAMA_API_URL = 'http://localhost:11434/api/chat'
 
@@ -573,7 +571,6 @@ def save_summary_to_db(user_id, summary):
     finally:
         cursor.close()
         connection.close()
-
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
 

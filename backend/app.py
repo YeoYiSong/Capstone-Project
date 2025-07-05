@@ -482,7 +482,7 @@ def update_conversation_name(user_id, old_name, new_name):
 
 def ai_generate_title(first_message):
     payload = {
-        "model": "gemma3:12b",
+        "model": "gemma3:12b",#改模型測試ollama list查看模型
         "messages": [
             {
                 "role": "system",
@@ -604,7 +604,7 @@ def chat():
     save_messages(messages)
 
     payload = {
-        'model': 'gemma3:12b',
+        'model': 'gemma3:12b',#改模型測試ollama list查看模型
         'messages': session_msgs,
         'stream': True
     }
@@ -665,7 +665,7 @@ def generate_summary(messages):
         }
     ]
     payload = {
-        "model": "gemma3:12b",
+        "model": "gemma3:12b",#改模型測試ollama list查看模型
         "messages": summary_prompt,
         "stream": False
     }

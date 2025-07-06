@@ -6,6 +6,8 @@ import json
 from datetime import datetime
 from flask_session import Session
 import requests
+import contextlib
+
 
 
 
@@ -203,7 +205,7 @@ def save_diary_entry():
     finally:
         cursor.close()
         connection.close()
-
+#本子模組
 @app.route('/get_diary_entries/<date>', methods=['GET'])
 def get_diary_entries(date):
     user_id = request.args.get('user_id')
@@ -224,7 +226,7 @@ def get_diary_entries(date):
         # 查詢 diaries
         query_diaries = """
         SELECT id, user_id, content AS mood_text, joy, sadness, anger, positive, anxiety, exhaust, 
-               color_mix AS mixed_color, create_at, is_english, details
+            color_mix AS mixed_color, create_at, is_english, details
         FROM diaries WHERE user_id = %s AND DATE(create_at) = %s
         """
         cursor.execute(query_diaries, (user_id, entry_date))
@@ -233,7 +235,7 @@ def get_diary_entries(date):
         # 查詢 now
         query_now = """
         SELECT id, user_id, note AS mood_text, joy, sadness, anger, positive, anxiety, exhaust, 
-               NULL AS mixed_color, create_at, is_english, details
+            NULL AS mixed_color, create_at, is_english, details
         FROM now WHERE user_id = %s AND DATE(create_at) = %s
         """
         cursor.execute(query_now, (user_id, entry_date))
@@ -313,6 +315,58 @@ def get_all_diary_entries():
     finally:
         cursor.close()
         connection.close()
+
+@app.route('/get_breath_record/<date>', methods=['GET'])
+def get_breath_record(date):
+    # --- 1) 參數檢查 ------------------------------------------------
+    user_id = request.args.get('user_id', type=int)
+    if not user_id:
+        return jsonify({'error': 'Missing or invalid user_id'}), 400
+
+    try:
+        entry_date = datetime.strptime(date, '%Y-%m-%d').date()
+    except ValueError:
+        return jsonify({'error': 'Date must be YYYY-MM-DD'}), 400
+
+    # --- 2) 連線 ----------------------------------------------------
+    conn = get_db_connection()
+    if conn is None:
+        return jsonify({'error': 'Database connection failed'}), 500
+
+    # --- 3) 查詢 ----------------------------------------------------
+    try:
+        sql = (
+            "SELECT  id, "
+            "        user_id, "
+            "        duration, "
+            "        `min`              AS minutes, "     # ← 保留字加反引號並取別名
+            "        felling, "
+            "        type, "
+            "        create_at          "                 # ← 供後續時間格式化
+            "FROM    breath_record "
+            "WHERE   user_id = %s "
+            "  AND   DATE(create_at) = %s "
+            "ORDER BY create_at ASC"
+        )
+        with contextlib.closing(conn.cursor(dictionary=True)) as cur:
+            cur.execute(sql, (user_id, entry_date))
+            rows = cur.fetchall()
+
+        # --- 4) 後處理 ------------------------------------------------
+        for r in rows:
+            r['record_date'] = r['create_at'].date().isoformat()
+            r['record_time'] = r['create_at'].strftime('%H:%M:%S')
+            # 若前端不需要 create_at，可刪除
+            del r['create_at']
+
+        return jsonify(rows), 200
+
+    except Error as e:
+        app.logger.exception('Failed to fetch breath records')
+        return jsonify({'error': f'Failed to fetch breath records: {e}'}), 500
+
+    finally:
+        conn.close()
 
 # 呼吸模組
 @app.route('/breath_record', methods=['POST'])

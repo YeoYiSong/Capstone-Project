@@ -155,7 +155,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       body: Container(
         decoration: BoxDecoration(
           image: DecorationImage(
-            image: AssetImage('assets/picture/register.png'),
+            image: AssetImage('assets/picture/bg.jpg'),
             fit: BoxFit.cover,
           ),
         ),

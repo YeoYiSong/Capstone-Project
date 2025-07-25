@@ -30,7 +30,8 @@ class DiaryEntry {
   factory DiaryEntry.fromJson(Map<String, dynamic> json) {
     String? mixedColor = json['mixed_color'] as String?;
     if (mixedColor != null &&
-        (!mixedColor.startsWith('#') || mixedColor.length != 9)) {
+        (!mixedColor.startsWith('#') ||
+            (mixedColor.length != 7 && mixedColor.length != 9))) {
       mixedColor = null;
     }
 
@@ -38,10 +39,7 @@ class DiaryEntry {
     return DiaryEntry(
       id: json['id'],
       date: createAt,
-      time: createAt
-          .toIso8601String()
-          .split('T')[1]
-          .substring(0, 8), // 提取 HH:MM:SS
+      time: createAt.toIso8601String().split('T')[1].substring(0, 8),
       type: json['entry_type'],
       emotions: List<Map<String, dynamic>>.from(json['emotions']),
       mixedColor: mixedColor,
@@ -66,21 +64,23 @@ class DiaryEntry {
 
 class BreathRecord {
   final int id;
-  final String userId;
+  final int userId;
   final int duration;
   final int min;
-  final String? felling;
+  final String? feeling;
   final String type;
   final DateTime createAt;
+  final String recordTime;
 
   BreathRecord({
     required this.id,
     required this.userId,
     required this.duration,
     required this.min,
-    this.felling,
+    this.feeling,
     required this.type,
     required this.createAt,
+    required this.recordTime,
   });
 
   factory BreathRecord.fromJson(Map<String, dynamic> json) {
@@ -89,9 +89,14 @@ class BreathRecord {
       userId: json['user_id'],
       duration: json['duration'],
       min: json['min'],
-      felling: json['felling'],
+      feeling: json['feeling'],
       type: json['type'],
       createAt: DateTime.parse(json['create_at']),
+      recordTime:
+          json['record_time'] ??
+          DateTime.parse(
+            json['create_at'],
+          ).toIso8601String().split('T')[1].substring(0, 8),
     );
   }
 
@@ -100,15 +105,14 @@ class BreathRecord {
       'user_id': userId,
       'duration': duration,
       'min': min,
-      'felling': felling,
+      'feeling': feeling,
       'type': type,
     };
   }
 }
 
 class ApiClient {
-  static String get baseUrl => getBaseUrl();
-
+  final String baseUrl = getBaseUrl();
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
   static Future<void> initialize() async {
@@ -118,9 +122,12 @@ class ApiClient {
     );
   }
 
-  Future<String?> _getUserId() async {
+  Future<String?> getUserId() async {
     final user = _auth.currentUser;
-    if (user == null) return null;
+    if (user == null) {
+      developer.log('No user logged in', name: 'ApiClient');
+      return null;
+    }
 
     final response = await http.post(
       Uri.parse('$baseUrl/get_user_id'),
@@ -145,11 +152,17 @@ class ApiClient {
     required String type,
     required List<Map<String, dynamic>> emotions,
     required String? mixedColor,
-    String? moodText,
-    String? details,
+    required String moodText,
+    required String details,
     required bool isEnglish,
+    double? joy,
+    double? sadness,
+    double? anger,
+    double? positive,
+    double? anxiety,
+    double? exhaust,
   }) async {
-    final userId = await _getUserId();
+    final userId = await getUserId();
     if (userId == null) throw Exception('用戶未登入');
 
     final body = {
@@ -179,7 +192,7 @@ class ApiClient {
   }
 
   Future<List<DiaryEntry>> getDiaryEntriesByDate(DateTime date) async {
-    final userId = await _getUserId();
+    final userId = await getUserId();
     if (userId == null) throw Exception('用戶未登入');
 
     final formattedDate = date.toIso8601String().split('T')[0];
@@ -200,7 +213,7 @@ class ApiClient {
   }
 
   Future<List<DiaryEntry>> getAllDiaryEntries() async {
-    final userId = await _getUserId();
+    final userId = await getUserId();
     if (userId == null) throw Exception('用戶未登入');
 
     final response = await http.get(
@@ -223,14 +236,14 @@ class ApiClient {
     required String userId,
     required int duration,
     required int min,
-    String? felling,
+    String? feeling,
     String type = '引導',
   }) async {
     final body = {
       'user_id': userId,
       'duration': duration,
       'min': min,
-      'felling': felling,
+      'feeling': feeling,
       'type': type,
     };
     try {
@@ -257,7 +270,7 @@ class ApiClient {
   }
 
   Future<List<BreathRecord>> getBreathRecordsByDate(DateTime date) async {
-    final userId = await _getUserId();
+    final userId = await getUserId();
     if (userId == null) throw Exception('用戶未登入');
 
     final formattedDate = date.toIso8601String().split('T')[0];
@@ -291,6 +304,213 @@ class ApiClient {
         name: 'ApiClient',
       );
       throw Exception('無法載入用戶呼吸記錄：${response.body}');
+    }
+  }
+
+  Stream<String> chat(String message, String language, int userId) async* {
+    if (userId == 0) {
+      final newUserId = await getUserId();
+      if (newUserId == null) {
+        throw Exception('無法獲取用戶ID，請重新登入');
+      }
+      userId = int.parse(newUserId);
+    }
+
+    final request =
+        http.Request('POST', Uri.parse('$baseUrl/chat'))
+          ..headers['Content-Type'] = 'application/json'
+          ..body = jsonEncode({
+            'message': message,
+            'user_id': userId,
+            'language': language,
+          });
+
+    final streamedResponse = await request.send();
+
+    if (streamedResponse.statusCode == 200) {
+      final stream = streamedResponse.stream.transform(utf8.decoder);
+      await for (var chunk in stream) {
+        yield chunk;
+      }
+    } else {
+      final errorBody = await streamedResponse.stream.bytesToString();
+      developer.log('chat failed: $errorBody', name: 'ApiClient');
+      throw Exception('傳送聊天訊息失敗：$errorBody');
+    }
+  }
+
+  Future<String> sendChatMessage(String message, int userId) async {
+    if (userId == 0) {
+      final newUserId = await getUserId();
+      if (newUserId == null) {
+        throw Exception('無法獲取用戶ID，請重新登入');
+      }
+      userId = int.parse(newUserId);
+    }
+
+    final response = await http.post(
+      Uri.parse('$baseUrl/chat'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'message': message, 'user_id': userId}),
+    );
+    if (response.statusCode == 200) {
+      return response.body;
+    } else {
+      developer.log(
+        'sendChatMessage failed: ${response.body}',
+        name: 'ApiClient',
+      );
+      throw Exception('傳送聊天訊息失敗：${response.body}');
+    }
+  }
+
+  Future<void> switchConversation(String conversationName) async {
+    final userId = await getUserId();
+    if (userId == null) throw Exception('用戶未登入');
+
+    final response = await http.post(
+      Uri.parse('$baseUrl/switch'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'conversation': conversationName, 'user_id': userId}),
+    );
+
+    if (response.statusCode != 200) {
+      developer.log(
+        'switchConversation failed: ${response.body}',
+        name: 'ApiClient',
+      );
+      throw Exception('切換對話失敗：${response.body}');
+    }
+  }
+
+  Future<void> resetConversation() async {
+    final userId = await getUserId();
+    if (userId == null) throw Exception('用戶未登入');
+
+    final response = await http.post(
+      Uri.parse('$baseUrl/reset'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'user_id': userId}),
+    );
+
+    if (response.statusCode != 200) {
+      developer.log(
+        'resetConversation failed: ${response.body}',
+        name: 'ApiClient',
+      );
+      throw Exception('重設對話失敗：${response.body}');
+    }
+  }
+
+  Future<void> deleteConversation(String conversationName) async {
+    final userId = await getUserId();
+    if (userId == null) throw Exception('用戶未登入');
+
+    final response = await http.post(
+      Uri.parse('$baseUrl/delete_conversation'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'conversation': conversationName, 'user_id': userId}),
+    );
+
+    if (response.statusCode != 200) {
+      developer.log(
+        'deleteConversation failed: ${response.body}',
+        name: 'ApiClient',
+      );
+      throw Exception('刪除對話失敗：${response.body}');
+    }
+  }
+
+  Future<void> renameConversation(String oldName, String newName) async {
+    final userId = await getUserId();
+    if (userId == null) throw Exception('用戶未登入');
+
+    final response = await http.post(
+      Uri.parse('$baseUrl/rename_conversation'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'old_conversation': oldName,
+        'new_conversation': newName,
+        'user_id': userId,
+      }),
+    );
+
+    if (response.statusCode != 200) {
+      developer.log(
+        'renameConversation failed: ${response.body}',
+        name: 'ApiClient',
+      );
+      throw Exception('重命名對話失敗：${response.body}');
+    }
+  }
+
+  Future<Map<String, dynamic>> getConversations() async {
+    final userId = await getUserId();
+    if (userId == null) throw Exception('用戶未登入');
+
+    final response = await http.get(
+      Uri.parse('$baseUrl/conversations?user_id=$userId'),
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      developer.log(
+        'getConversations failed: ${response.body}',
+        name: 'ApiClient',
+      );
+      throw Exception('取得對話列表失敗：${response.body}');
+    }
+  }
+
+  Future<List<Map<String, String>>> getChatHistory() async {
+    final userId = await getUserId();
+    if (userId == null) throw Exception('用戶未登入');
+
+    final response = await http.get(
+      Uri.parse('$baseUrl/history?user_id=$userId'),
+    );
+
+    if (response.statusCode == 200) {
+      final json = jsonDecode(response.body);
+      final history = List<Map<String, String>>.from(
+        (json['history'] as List).map(
+          (e) => {
+            'role': e['role']?.toString() ?? '',
+            'content': e['content']?.toString() ?? '',
+            'create_at': e['create_at']?.toString() ?? '',
+          },
+        ),
+      );
+      return history;
+    } else {
+      developer.log(
+        'getChatHistory failed: ${response.body}',
+        name: 'ApiClient',
+      );
+      throw Exception('取得聊天記錄失敗：${response.body}');
+    }
+  }
+
+  Future<String> finalizeConversation() async {
+    final userId = await getUserId();
+    if (userId == null) throw Exception('用戶未登入');
+
+    final response = await http.post(
+      Uri.parse('$baseUrl/finalize'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'user_id': userId}),
+    );
+
+    if (response.statusCode == 200) {
+      final json = jsonDecode(response.body);
+      return json['summary'] ?? '';
+    } else {
+      developer.log(
+        'finalizeConversation failed: ${response.body}',
+        name: 'ApiClient',
+      );
+      throw Exception('產生對話摘要失敗：${response.body}');
     }
   }
 }

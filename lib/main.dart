@@ -113,7 +113,7 @@ class _Smaily2AppState extends State<Smaily2App> {
             ),
         '/diary': (context) => DiaryScreen(isEnglish: _isEnglish),
         '/recommendation': (context) => const RecommendationScreen(),
-        '/chatbot': (context) => const ChatbotScreen(),
+        '/chatbot': (context) => ChatbotScreen(isEnglish: _isEnglish),
         '/breathing': (context) => BreathingScreen(isEnglish: _isEnglish),
         '/settings':
             (context) => SettingsScreen(

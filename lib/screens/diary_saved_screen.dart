@@ -38,7 +38,12 @@ class DiarySavedScreen extends StatelessWidget {
         ),
       ),
       body: Container(
-        color: mixedColorValue,
+        decoration: const BoxDecoration(
+          image: DecorationImage(
+            image: AssetImage('assets/picture/bg.jpg'),
+            fit: BoxFit.cover,
+          ),
+        ),
         child: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,

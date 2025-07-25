@@ -3,8 +3,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 import 'package:flutter/foundation.dart' show kIsWeb, kDebugMode;
-import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:http/browser_client.dart';
+import '/utils/config.dart';
 
 class LoginScreen extends StatefulWidget {
   final bool isEnglish;
@@ -177,8 +178,10 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Future<int?> _fetchUserId(String firebaseUid) async {
     try {
-      final response = await http.post(
-        Uri.parse('http://127.0.0.1:5000/get_user_id'),
+      final client = BrowserClient()..withCredentials = true;
+
+      final response = await client.post(
+        Uri.parse('${getBaseUrl()}/get_user_id'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'firebase_uid': firebaseUid}),
       );

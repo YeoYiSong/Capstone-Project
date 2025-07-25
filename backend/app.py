@@ -8,11 +8,9 @@ from flask_session import Session
 import requests
 import contextlib
 
-
-
-
 app = Flask(__name__)
-CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
+CORS(app, supports_credentials=True)
+
 app.config['SECRET_KEY'] = 'replace_with_your_own_secret_key'
 app.config['SESSION_TYPE'] = 'filesystem'
 Session(app)
@@ -63,8 +61,10 @@ def get_user_id():
         result = cursor.fetchone()
 
         if result:
+            user_id = result['user_id']
             print(f"[路由] 找到了 user_id：{result['user_id']}")
-            return jsonify(result), 200
+            session["user_id"] = user_id
+            return jsonify({'user_id': user_id}), 200
         else:
             print("[路由] 找不到對應的 user，準備自動創建")
             insert_auth = "INSERT INTO auth_users (firebase_uid) VALUES (%s)"
@@ -75,6 +75,7 @@ def get_user_id():
             user_id = cursor.lastrowid
             connection.commit()
             print(f"[路由] 自動新增 user_id：{user_id}")
+            session["user_id"] = user_id
             return jsonify({'user_id': user_id}), 200
     except Error as e:
         return jsonify({'error': f'Failed to fetch/create user id: {e}'}), 500
@@ -115,19 +116,19 @@ def register_user_if_not_exists():
     finally:
         cursor.close()
         connection.close()
-        
+
 # 日記模組
 @app.route('/save_diary_entry', methods=['POST'])
 def save_diary_entry():
     data = request.get_json()
-    user_id = data.get('user_id')
+    user_id = session.get('user_id')
     date = data.get('date')
     type = data.get('type')
     emotions = data.get('emotions')
-    mixed_color = data.get('mixed_color')  # 統一為 mixed_color
-    mood_text = data.get('mood_text')      # 統一為 mood_text
+    mixed_color = data.get('mixed_color')
+    mood_text = data.get('mood_text')
     details = data.get('details')
-    is_english = data.get('is_english', False)  # 統一為 is_english
+    is_english = data.get('is_english', False)
 
     if not user_id or not date or not type or not emotions:
         return jsonify({'error': 'Missing required fields'}), 400
@@ -205,10 +206,10 @@ def save_diary_entry():
     finally:
         cursor.close()
         connection.close()
-#本子模組
+
 @app.route('/get_diary_entries/<date>', methods=['GET'])
 def get_diary_entries(date):
-    user_id = request.args.get('user_id')
+    user_id = session.get('user_id')
     if not user_id:
         return jsonify({'error': 'Missing user_id'}), 400
 
@@ -223,7 +224,6 @@ def get_diary_entries(date):
 
     try:
         cursor = connection.cursor(dictionary=True)
-        # 查詢 diaries
         query_diaries = """
         SELECT id, user_id, content AS mood_text, joy, sadness, anger, positive, anxiety, exhaust, 
             color_mix AS mixed_color, create_at, is_english, details
@@ -232,7 +232,6 @@ def get_diary_entries(date):
         cursor.execute(query_diaries, (user_id, entry_date))
         day_entries = cursor.fetchall()
 
-        # 查詢 now
         query_now = """
         SELECT id, user_id, note AS mood_text, joy, sadness, anger, positive, anxiety, exhaust, 
             NULL AS mixed_color, create_at, is_english, details
@@ -241,7 +240,6 @@ def get_diary_entries(date):
         cursor.execute(query_now, (user_id, entry_date))
         moment_entries = cursor.fetchall()
 
-        # 合併並格式化
         entries = day_entries + moment_entries
         for entry in entries:
             entry['entry_type'] = 'Day' if entry['mixed_color'] is not None else 'Moment'
@@ -267,7 +265,7 @@ def get_diary_entries(date):
 
 @app.route('/get_all_diary_entries', methods=['GET'])
 def get_all_diary_entries():
-    user_id = request.args.get('user_id')
+    user_id = session.get('user_id')
     if not user_id:
         return jsonify({'error': 'Missing user_id'}), 400
 
@@ -316,66 +314,14 @@ def get_all_diary_entries():
         cursor.close()
         connection.close()
 
-@app.route('/get_breath_record/<date>', methods=['GET'])
-def get_breath_record(date):
-    # --- 1) 參數檢查 ------------------------------------------------
-    user_id = request.args.get('user_id', type=int)
-    if not user_id:
-        return jsonify({'error': 'Missing or invalid user_id'}), 400
-
-    try:
-        entry_date = datetime.strptime(date, '%Y-%m-%d').date()
-    except ValueError:
-        return jsonify({'error': 'Date must be YYYY-MM-DD'}), 400
-
-    # --- 2) 連線 ----------------------------------------------------
-    conn = get_db_connection()
-    if conn is None:
-        return jsonify({'error': 'Database connection failed'}), 500
-
-    # --- 3) 查詢 ----------------------------------------------------
-    try:
-        sql = (
-            "SELECT  id, "
-            "        user_id, "
-            "        duration, "
-            "        `min`              AS minutes, "     # ← 保留字加反引號並取別名
-            "        felling, "
-            "        type, "
-            "        create_at          "                 # ← 供後續時間格式化
-            "FROM    breath_record "
-            "WHERE   user_id = %s "
-            "  AND   DATE(create_at) = %s "
-            "ORDER BY create_at ASC"
-        )
-        with contextlib.closing(conn.cursor(dictionary=True)) as cur:
-            cur.execute(sql, (user_id, entry_date))
-            rows = cur.fetchall()
-
-        # --- 4) 後處理 ------------------------------------------------
-        for r in rows:
-            r['record_date'] = r['create_at'].date().isoformat()
-            r['record_time'] = r['create_at'].strftime('%H:%M:%S')
-            # 若前端不需要 create_at，可刪除
-            del r['create_at']
-
-        return jsonify(rows), 200
-
-    except Error as e:
-        app.logger.exception('Failed to fetch breath records')
-        return jsonify({'error': f'Failed to fetch breath records: {e}'}), 500
-
-    finally:
-        conn.close()
-
 # 呼吸模組
 @app.route('/breath_record', methods=['POST'])
 def add_breath_record():
     data = request.get_json()
-    user_id = data.get('user_id')
+    user_id = session.get('user_id')
     duration = data.get('duration')
     min_value = data.get('min')
-    felling = data.get('felling')
+    feeling = data.get('feeling')
     type_value = data.get('type', '引導')
 
     if not user_id or min_value is None:
@@ -388,10 +334,10 @@ def add_breath_record():
     try:
         cursor = connection.cursor()
         query = """
-            INSERT INTO breath_record (user_id, duration, min, felling, type)
+            INSERT INTO breath_record (user_id, duration, min, feeling, type)
             VALUES (%s, %s, %s, %s, %s)
         """
-        cursor.execute(query, (user_id, duration, min_value, felling, type_value))
+        cursor.execute(query, (user_id, duration, min_value, feeling, type_value))
         connection.commit()
         return jsonify({'message': 'Breath record saved successfully'}), 200
     except Error as e:
@@ -402,30 +348,48 @@ def add_breath_record():
 
 @app.route('/breath_record/<date>', methods=['GET'])
 def get_breath_records_by_date(date):
-    user_id = request.args.get('user_id')
+    user_id = session.get('user_id')
     if not user_id:
-        return jsonify({'error': 'Missing user_id'}), 400
+        return jsonify({'error': 'Missing or invalid user_id'}), 400
 
     try:
-        entry_date = datetime.strptime(date, '%Y-%m-%d').date().isoformat()
-    except ValueError as e:
-        return jsonify({'error': f'Invalid date format: {e}'}), 400
+        entry_date = datetime.strptime(date, '%Y-%m-%d').date()
+    except ValueError:
+        return jsonify({'error': 'Date must be YYYY-MM-DD'}), 400
 
-    connection = get_db_connection()
-    if connection is None:
+    conn = get_db_connection()
+    if conn is None:
         return jsonify({'error': 'Database connection failed'}), 500
 
     try:
-        cursor = connection.cursor(dictionary=True)
-        query = "SELECT * FROM breath_record WHERE user_id = %s AND DATE(create_at) = %s"
-        cursor.execute(query, (user_id, entry_date))
-        records = cursor.fetchall()
-        return jsonify(records), 200
+        sql = (
+            "SELECT  id, "
+            "        user_id, "
+            "        duration, "
+            "        min, "
+            "        feeling, "
+            "        type, "
+            "        create_at "
+            "FROM    breath_record "
+            "WHERE   user_id = %s "
+            "  AND   DATE(create_at) = %s "
+            "ORDER BY create_at ASC"
+        )
+        with contextlib.closing(conn.cursor(dictionary=True)) as cur:
+            cur.execute(sql, (user_id, entry_date))
+            rows = cur.fetchall()
+
+        for r in rows:
+            r['record_date'] = r['create_at'].date().isoformat()
+            r['record_time'] = r['create_at'].strftime('%H:%M:%S')
+            r['create_at'] = r['create_at'].isoformat()
+
+        return jsonify(rows), 200
     except Error as e:
+        app.logger.exception('Failed to fetch breath records')
         return jsonify({'error': f'Failed to fetch breath records: {e}'}), 500
     finally:
-        cursor.close()
-        connection.close()
+        conn.close()
 
 @app.route('/breath_record/user/<user_id>', methods=['GET'])
 def get_breath_records_by_user(user_id):
@@ -438,6 +402,11 @@ def get_breath_records_by_user(user_id):
         query = "SELECT * FROM breath_record WHERE user_id = %s"
         cursor.execute(query, (user_id,))
         records = cursor.fetchall()
+
+        for r in records:
+            if isinstance(r.get('create_at'), datetime):
+                r['create_at'] = r['create_at'].isoformat()
+
         return jsonify(records), 200
     except Error as e:
         return jsonify({'error': f'Failed to fetch breath records: {e}'}), 500
@@ -445,14 +414,14 @@ def get_breath_records_by_user(user_id):
         cursor.close()
         connection.close()
 
-@app.route('/breath_record/felling', methods=['POST'])
-def update_breath_felling():
+@app.route('/breath_record/feeling', methods=['POST'])
+def update_breath_feeling():
     data = request.get_json()
     record_id = data.get('id')
-    felling = data.get('felling')
+    feeling = data.get('feeling')
 
-    if not record_id or not felling:
-        return jsonify({'error': 'Missing id or felling'}), 400
+    if not record_id or not feeling:
+        return jsonify({'error': 'Missing id or feeling'}), 400
 
     connection = get_db_connection()
     if connection is None:
@@ -460,15 +429,16 @@ def update_breath_felling():
 
     try:
         cursor = connection.cursor()
-        query = "UPDATE breath_record SET felling = %s WHERE id = %s"
-        cursor.execute(query, (felling, record_id))
+        query = "UPDATE breath_record SET feeling = %s WHERE id = %s"
+        cursor.execute(query, (feeling, record_id))
         connection.commit()
-        return jsonify({'message': 'Felling updated successfully'}), 200
+        return jsonify({'message': 'Feeling updated successfully'}), 200
     except Error as e:
-        return jsonify({'error': f'Failed to update felling: {e}'}), 500
+        return jsonify({'error': f'Failed to update feeling: {e}'}), 500
     finally:
         cursor.close()
         connection.close()
+
 # 聊天機器人模組
 OLLAMA_API_URL = 'http://localhost:11434/api/chat'
 
@@ -510,8 +480,8 @@ def save_message_to_db(user_id, conversation, role, content):
         return
     try:
         cursor = connection.cursor()
-        sql = "INSERT INTO robot_chat_history (user_id, conversation, role, content) VALUES (%s, %s, %s, %s)"
-        cursor.execute(sql, (user_id, conversation, role, content))
+        sql = "INSERT INTO robot_chat_history (user_id, conversation, role, content, create_at) VALUES (%s, %s, %s, %s, %s)"
+        cursor.execute(sql, (user_id, conversation, role, content, datetime.now()))
         connection.commit()
     except Exception as e:
         print(f"[DB] 儲存對話失敗: {e}")
@@ -536,7 +506,7 @@ def update_conversation_name(user_id, old_name, new_name):
 
 def ai_generate_title(first_message):
     payload = {
-        "model": "gemma3:12b",#改模型測試ollama list查看模型
+        "model": "gemma3:12b",
         "messages": [
             {
                 "role": "system",
@@ -577,6 +547,59 @@ def reset_conversation():
     session[key] = []
     return jsonify({'status': 'cleared', 'conversation': get_current_name()})
 
+@app.route('/delete_conversation', methods=['POST'])
+def delete_conversation():
+    user_id = get_user_id()
+    data = request.get_json()
+    conversation = data.get('conversation', '').strip()
+    if not conversation:
+        return jsonify({'error': 'Missing conversation name'}), 400
+
+    connection = get_db_connection()
+    if not connection:
+        return jsonify({'error': 'Database connection failed'}), 500
+
+    try:
+        cursor = connection.cursor()
+        sql = "DELETE FROM robot_chat_history WHERE user_id=%s AND conversation=%s"
+        cursor.execute(sql, (user_id, conversation))
+        connection.commit()
+        session.pop(f'messages_{user_id}_{conversation}', None)
+        return jsonify({'status': 'deleted', 'conversation': conversation}), 200
+    except Exception as e:
+        return jsonify({'error': f'Failed to delete conversation: {e}'}), 500
+    finally:
+        cursor.close()
+        connection.close()
+
+@app.route('/rename_conversation', methods=['POST'])
+def rename_conversation():
+    user_id = get_user_id()
+    data = request.get_json()
+    old_name = data.get('old_conversation', '').strip()
+    new_name = data.get('new_conversation', '').strip()
+    if not old_name or not new_name:
+        return jsonify({'error': 'Missing old_conversation or new_conversation'}), 400
+
+    connection = get_db_connection()
+    if not connection:
+        return jsonify({'error': 'Database connection failed'}), 500
+
+    try:
+        cursor = connection.cursor()
+        sql = "UPDATE robot_chat_history SET conversation=%s WHERE user_id=%s AND conversation=%s"
+        cursor.execute(sql, (new_name, user_id, old_name))
+        connection.commit()
+        session[f'messages_{user_id}_{new_name}'] = session.pop(f'messages_{user_id}_{old_name}', [])
+        if get_current_name() == old_name:
+            set_current_name(new_name)
+        return jsonify({'status': 'renamed', 'conversation': new_name}), 200
+    except Exception as e:
+        return jsonify({'error': f'Failed to rename conversation: {e}'}), 500
+    finally:
+        cursor.close()
+        connection.close()
+
 @app.route('/conversations', methods=['GET'])
 def list_conversations():
     user_id = get_user_id()
@@ -607,14 +630,14 @@ def get_history():
     if not connection:
         return jsonify({'history': []})
     try:
-        cursor = connection.cursor()
-        sql = "SELECT role, content FROM robot_chat_history WHERE user_id=%s AND conversation=%s ORDER BY id"
+        cursor = connection.cursor(dictionary=True)
+        sql = "SELECT role, content, create_at FROM robot_chat_history WHERE user_id=%s AND conversation=%s ORDER BY id"
         cursor.execute(sql, (user_id, conversation))
         rows = cursor.fetchall()
         history = [
-            {'role': role, 'content': content}
-            for (role, content) in rows
-            if content and content.strip()
+            {'role': row['role'], 'content': row['content'], 'create_at': row['create_at'].isoformat()}
+            for row in rows
+            if row['content'] and row['content'].strip()
         ]
         return jsonify({'history': history})
     finally:
@@ -624,7 +647,10 @@ def get_history():
 @app.route('/chat', methods=['POST'])
 def chat():
     user_id = get_user_id()
-    user_message = request.json.get('message', '').strip()
+    data = request.get_json()
+    user_message = data.get('message', '').strip()
+    lang = data.get("language", "zh")
+
     conversation = get_current_name()
     is_new_conv = conversation.startswith("untitled_")
     ai_titled = session.get(f'ai_titled_{user_id}', False)
@@ -632,6 +658,10 @@ def chat():
     if not user_message:
         return Response('', content_type='text/plain')
 
+    system_lang_prompt = {
+        "en": "Please reply in English.",
+        "zh": "請用繁體中文回答。"
+    }.get(lang, "請用繁體中文回答。")
     messages = get_messages()
     if not messages:
         messages.append({
@@ -641,7 +671,7 @@ def chat():
                 '不用太正式，像平常朋友聊天一樣就好，溫暖、有共鳴，讓我覺得被理解就好。'
             )
         })
-
+    messages.append({'role': 'system', 'content': system_lang_prompt})
     messages.append({'role': 'user', 'content': user_message})
     save_message_to_db(user_id, conversation, 'user', user_message)
 
@@ -655,10 +685,10 @@ def chat():
 
     trimmed = [m for m in messages if m['role'] != 'system']
     session_msgs = messages[:1] + trimmed[-6:]
-    save_messages(messages)
+    save_messages(session_msgs)
 
     payload = {
-        'model': 'gemma3:12b',#改模型測試ollama list查看模型
+        'model': 'gemma3:12b',
         'messages': session_msgs,
         'stream': True
     }
@@ -688,7 +718,7 @@ def chat():
             save_messages(msgs)
             save_message_to_db(user_id, conversation, 'assistant', full_response['value'])
 
-    return Response(generate(), content_type='text/plain')
+    return Response(generate(), content_type='text/plain; charset=utf-8')
 
 @app.route('/finalize', methods=['POST'])
 def finalize_conversation():
@@ -719,7 +749,7 @@ def generate_summary(messages):
         }
     ]
     payload = {
-        "model": "gemma3:12b",#改模型測試ollama list查看模型
+        "model": "gemma3:12b",
         "messages": summary_prompt,
         "stream": False
     }
@@ -743,7 +773,6 @@ def save_summary_to_db(user_id, summary):
     finally:
         cursor.close()
         connection.close()
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
-
-

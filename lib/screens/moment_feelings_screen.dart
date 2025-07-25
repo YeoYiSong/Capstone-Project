@@ -66,145 +66,153 @@ class MomentFeelingsScreenState extends State<MomentFeelingsScreen> {
         title: Text(widget.isEnglish ? 'Moment Feelings' : '當下的感受'),
         backgroundColor: Colors.blue,
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: SingleChildScrollView(
-          child: Column(
-            children: [
-              const SizedBox(height: 20),
-              if (!widget.isReadOnly)
-                HexagonEmotionSelector(
-                  isEnglish: widget.isEnglish,
-                  onEmotionSelected: (emotions) {
-                    setState(() {
-                      _selectedEmotions =
-                          emotions
-                              .map(
-                                (e) => {
-                                  'emotion': e['emotion'],
-                                  'intensity': e['intensity'],
-                                },
-                              )
-                              .toList();
-                    });
-                  },
-                )
-              else
-                Text(
-                  _selectedEmotions.isNotEmpty
-                      ? _selectedEmotions
-                          .map((e) => '${e['emotion']}: ${e['intensity']}%')
-                          .join(', ')
-                      : (widget.isEnglish ? 'No emotions selected' : '未選擇情緒'),
-                  style: const TextStyle(fontSize: 16),
-                ),
-              const SizedBox(height: 20),
-              ConstrainedBox(
-                constraints: const BoxConstraints(maxHeight: 150),
-                child: SingleChildScrollView(
-                  child: TextField(
-                    controller: _moodController,
-                    focusNode: _moodFocusNode,
-                    decoration: InputDecoration(
-                      hintText:
-                          widget.isEnglish
-                              ? 'Why do you feel this way?'
-                              : '為什麼有這種情緒？',
-                      border: const OutlineInputBorder(),
-                      filled: true,
-                      fillColor: Colors.blue.withValues(alpha: 13),
-                    ),
-                    onChanged: (text) {
-                      moodText = text;
+      body: Container(
+        decoration: const BoxDecoration(
+          image: DecorationImage(
+            image: AssetImage('assets/picture/bg.jpg'),
+            fit: BoxFit.cover,
+          ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: SingleChildScrollView(
+            child: Column(
+              children: [
+                const SizedBox(height: 20),
+                if (!widget.isReadOnly)
+                  HexagonEmotionSelector(
+                    isEnglish: widget.isEnglish,
+                    onEmotionSelected: (emotions) {
+                      setState(() {
+                        _selectedEmotions =
+                            emotions
+                                .map(
+                                  (e) => {
+                                    'emotion': e['emotion'],
+                                    'intensity': e['intensity'],
+                                  },
+                                )
+                                .toList();
+                      });
                     },
-                    maxLines: null,
-                    minLines: 3,
-                    keyboardType: TextInputType.multiline,
-                    enabled: !widget.isReadOnly,
+                  )
+                else
+                  Text(
+                    _selectedEmotions.isNotEmpty
+                        ? _selectedEmotions
+                            .map((e) => '${e['emotion']}: ${e['intensity']}%')
+                            .join(', ')
+                        : (widget.isEnglish ? 'No emotions selected' : '未選擇情緒'),
+                    style: const TextStyle(fontSize: 16),
                   ),
-                ),
-              ),
-              const SizedBox(height: 20),
-              ConstrainedBox(
-                constraints: const BoxConstraints(maxHeight: 150),
-                child: SingleChildScrollView(
-                  child: TextField(
-                    controller: _detailsController,
-                    focusNode: _detailsFocusNode,
-                    decoration: InputDecoration(
-                      hintText:
-                          widget.isEnglish
-                              ? 'More details (optional)'
-                              : '更多細節（可選）',
-                      border: const OutlineInputBorder(),
-                      filled: true,
-                      fillColor: Colors.blue.withValues(alpha: 13),
+                const SizedBox(height: 20),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 150),
+                  child: SingleChildScrollView(
+                    child: TextField(
+                      controller: _moodController,
+                      focusNode: _moodFocusNode,
+                      decoration: InputDecoration(
+                        hintText:
+                            widget.isEnglish
+                                ? 'Why do you feel this way?'
+                                : '為什麼有這種情緒？',
+                        border: const OutlineInputBorder(),
+                        filled: true,
+                        fillColor: Colors.blue.withValues(alpha: 13),
+                      ),
+                      onChanged: (text) {
+                        moodText = text;
+                      },
+                      maxLines: null,
+                      minLines: 3,
+                      keyboardType: TextInputType.multiline,
+                      enabled: !widget.isReadOnly,
                     ),
-                    maxLines: null,
-                    minLines: 3,
-                    keyboardType: TextInputType.multiline,
-                    enabled: !widget.isReadOnly,
                   ),
                 ),
-              ),
-              const SizedBox(height: 20),
-              if (!widget.isReadOnly)
-                ElevatedButton(
-                  onPressed: () async {
-                    void navigateToSavedScreen() {
-                      if (!mounted) return;
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder:
-                              (context) => DiarySavedScreen(
-                                isEnglish: widget.isEnglish,
-                                selectedEmotions: _selectedEmotions,
-                                mixedColor: mixColorsWithAlpha(
-                                  _selectedEmotions,
+                const SizedBox(height: 20),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 150),
+                  child: SingleChildScrollView(
+                    child: TextField(
+                      controller: _detailsController,
+                      focusNode: _detailsFocusNode,
+                      decoration: InputDecoration(
+                        hintText:
+                            widget.isEnglish
+                                ? 'More details (optional)'
+                                : '更多細節（可選）',
+                        border: const OutlineInputBorder(),
+                        filled: true,
+                        fillColor: Colors.blue.withValues(alpha: 13),
+                      ),
+                      maxLines: null,
+                      minLines: 3,
+                      keyboardType: TextInputType.multiline,
+                      enabled: !widget.isReadOnly,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                if (!widget.isReadOnly)
+                  ElevatedButton(
+                    onPressed: () async {
+                      void navigateToSavedScreen() {
+                        if (!mounted) return;
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder:
+                                (context) => DiarySavedScreen(
+                                  isEnglish: widget.isEnglish,
+                                  selectedEmotions: _selectedEmotions,
+                                  mixedColor: mixColorsWithAlpha(
+                                    _selectedEmotions,
+                                  ),
                                 ),
-                              ),
-                        ),
-                      );
-                    }
-
-                    void showErrorSnackBar(Exception e) {
-                      if (!mounted) return;
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('Failed to save moment entry: $e'),
-                        ),
-                      );
-                    }
-
-                    try {
-                      await _apiClient.saveDiaryEntry(
-                        date: widget.date,
-                        type: 'Moment',
-                        emotions: _selectedEmotions,
-                        mixedColor: null, // Moment 不使用 mixedColor
-                        moodText: moodText,
-                        details: _detailsController.text,
-                        isEnglish: widget.isEnglish,
-                      );
-                      navigateToSavedScreen();
-                    } catch (e) {
-                      if (kDebugMode) {
-                        print('Error saving moment entry: $e');
+                          ),
+                        );
                       }
-                      showErrorSnackBar(e as Exception);
-                    }
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
+
+                      void showErrorSnackBar(Exception e) {
+                        if (!mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Failed to save moment entry: $e'),
+                          ),
+                        );
+                      }
+
+                      try {
+                        await _apiClient.saveDiaryEntry(
+                          date: widget.date,
+                          type: 'Moment',
+                          emotions: _selectedEmotions,
+                          mixedColor: null, // Moment 不使用 mixedColor
+                          moodText: moodText,
+                          details: _detailsController.text,
+                          isEnglish: widget.isEnglish,
+                        );
+                        navigateToSavedScreen();
+                      } catch (e) {
+                        if (kDebugMode) {
+                          print('Error saving moment entry: $e');
+                        }
+                        showErrorSnackBar(e as Exception);
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
                     ),
+                    child: Text(widget.isEnglish ? 'Done' : '完成'),
                   ),
-                  child: Text(widget.isEnglish ? 'Done' : '完成'),
-                ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

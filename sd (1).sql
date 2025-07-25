@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- 主机： 127.0.0.1
--- 生成日期： 2025-07-02 19:43:36
+-- 生成日期： 2025-07-09 11:38:24
 -- 服务器版本： 10.4.32-MariaDB
 -- PHP 版本： 8.2.12
 
@@ -44,8 +44,7 @@ CREATE TABLE `auth_users` (
 --
 
 INSERT INTO `auth_users` (`id`, `phone_number`, `password`, `google_id`, `google_bound`, `apple_id`, `apple_bound`, `create_at`, `firebase_uid`) VALUES
-(1, NULL, NULL, NULL, 0, NULL, 0, '2025-07-02 15:08:42', NULL),
-(2, NULL, NULL, NULL, 0, NULL, 0, '2025-07-03 00:42:51', 'Sm5RG6yzcgTaQeseduqwSD6o5bo1');
+(3, NULL, NULL, NULL, 0, NULL, 0, '2025-07-09 17:28:04', 'Sm5RG6yzcgTaQeseduqwSD6o5bo1');
 
 -- --------------------------------------------------------
 
@@ -58,7 +57,7 @@ CREATE TABLE `breath_record` (
   `user_id` int(11) NOT NULL,
   `duration` int(11) DEFAULT NULL,
   `min` int(11) NOT NULL,
-  `felling` varchar(200) DEFAULT NULL,
+  `feeling` varchar(255) DEFAULT NULL,
   `create_at` datetime DEFAULT current_timestamp(),
   `type` enum('正常','引導') NOT NULL DEFAULT '引導'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
@@ -67,9 +66,9 @@ CREATE TABLE `breath_record` (
 -- 转存表中的数据 `breath_record`
 --
 
-INSERT INTO `breath_record` (`id`, `user_id`, `duration`, `min`, `felling`, `create_at`, `type`) VALUES
-(1, 4, 5, 5, NULL, '2025-07-03 00:43:12', '引導'),
-(2, 4, 5, 5, '哈', '2025-07-03 00:43:19', '引導');
+INSERT INTO `breath_record` (`id`, `user_id`, `duration`, `min`, `feeling`, `create_at`, `type`) VALUES
+(3, 5, 5, 5, NULL, '2025-07-09 17:30:54', '引導'),
+(4, 5, 5, 5, '阿斯頓撒', '2025-07-09 17:31:01', '引導');
 
 -- --------------------------------------------------------
 
@@ -100,7 +99,7 @@ CREATE TABLE `diaries` (
   `positive` float DEFAULT 0,
   `anxiety` float DEFAULT 0,
   `exhaust` float DEFAULT 0,
-  `color_mix` char(7) DEFAULT NULL,
+  `color_mix` varchar(10) DEFAULT NULL,
   `create_at` datetime DEFAULT current_timestamp(),
   `oil_id` int(11) DEFAULT NULL,
   `details` text DEFAULT NULL,
@@ -112,8 +111,7 @@ CREATE TABLE `diaries` (
 --
 
 INSERT INTO `diaries` (`id`, `user_id`, `content`, `joy`, `sadness`, `anger`, `positive`, `anxiety`, `exhaust`, `color_mix`, `create_at`, `oil_id`, `details`, `is_english`) VALUES
-(1, 4, '很煩啊', 0, 0, 0, 0, 51.852, 0, '#4F8000', '2025-07-03 01:13:18', NULL, '', 0),
-(2, 4, '可惡啊', 0, 0, 60.0644, 0, 0, 0, '#5CFF00', '2025-07-03 01:40:55', NULL, '真的煩', 0);
+(21, 5, '很辛苦地帶飛了整個遊戲的勝利', 0, 0, 62.2794, 0, 0, 0, '#FFF46418', '2025-07-09 17:28:58', NULL, '一群不行的菜雞', 0);
 
 -- --------------------------------------------------------
 
@@ -198,7 +196,7 @@ CREATE TABLE `now` (
 --
 
 INSERT INTO `now` (`id`, `user_id`, `joy`, `sadness`, `anger`, `positive`, `anxiety`, `exhaust`, `note`, `create_at`, `details`, `is_english`) VALUES
-(1, 4, 0, 0, 0, 0, 80.6143, 0, '啊啊啊啊', '2025-07-03 01:40:32', '', 0);
+(6, 5, 0, 0, 0, 0, 0, 0, '跟大家demo', '2025-07-09 17:28:17', '很不錯', 0);
 
 -- --------------------------------------------------------
 
@@ -579,13 +577,6 @@ CREATE TABLE `robot_chat` (
   `create_at` datetime DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
---
--- 转存表中的数据 `robot_chat`
---
-
-INSERT INTO `robot_chat` (`id`, `user_id`, `summary`, `keywords`, `emotion_tag`, `create_at`) VALUES
-(4, 3, '對方表達了積極的心情，並希望與AI分享感受。', '', '', '2025-07-02 16:21:19');
-
 -- --------------------------------------------------------
 
 --
@@ -683,8 +674,7 @@ CREATE TABLE `users` (
 --
 
 INSERT INTO `users` (`id`, `auth_user_id`, `name`, `photo`, `created_at`, `oil_id`, `favorite_music`) VALUES
-(3, 1, '測試帳號', NULL, '2025-07-02 15:08:57', NULL, NULL),
-(4, 2, NULL, NULL, '2025-07-03 00:42:51', NULL, NULL);
+(5, 3, NULL, NULL, '2025-07-09 17:28:04', NULL, NULL);
 
 -- --------------------------------------------------------
 
@@ -820,13 +810,13 @@ ALTER TABLE `white_noise`
 -- 使用表AUTO_INCREMENT `auth_users`
 --
 ALTER TABLE `auth_users`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
 
 --
 -- 使用表AUTO_INCREMENT `breath_record`
 --
 ALTER TABLE `breath_record`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
 
 --
 -- 使用表AUTO_INCREMENT `color`
@@ -838,7 +828,7 @@ ALTER TABLE `color`
 -- 使用表AUTO_INCREMENT `diaries`
 --
 ALTER TABLE `diaries`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=22;
 
 --
 -- 使用表AUTO_INCREMENT `effect`
@@ -856,7 +846,7 @@ ALTER TABLE `emoji`
 -- 使用表AUTO_INCREMENT `now`
 --
 ALTER TABLE `now`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
 
 --
 -- 使用表AUTO_INCREMENT `oil`
@@ -880,7 +870,7 @@ ALTER TABLE `robot_chat_history`
 -- 使用表AUTO_INCREMENT `users`
 --
 ALTER TABLE `users`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
 
 --
 -- 使用表AUTO_INCREMENT `user_preferences`

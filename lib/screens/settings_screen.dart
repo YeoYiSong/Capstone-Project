@@ -68,53 +68,61 @@ class SettingsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text(isEnglish ? 'Settings' : '設定')),
-      body: ListView(
-        children: [
-          ListTile(title: Text(isEnglish ? 'Account' : '帳戶')),
-          ListTile(
-            title: Text(isEnglish ? 'Change Phone' : '更換電話'),
-            onTap: () {},
+      body: Container(
+        decoration: const BoxDecoration(
+          image: DecorationImage(
+            image: AssetImage('assets/picture/bg.jpg'),
+            fit: BoxFit.cover,
           ),
-          ListTile(
-            title: Text(isEnglish ? 'Password Settings' : '密碼設定'),
-            onTap: () {},
-          ),
-          ListTile(
-            title: Text(isEnglish ? 'Theme (Light/Dark)' : '主題（明/暗）'),
-            trailing: Switch(
-              value: isDarkTheme,
-              onChanged: (value) {
-                onThemeChanged(value);
-              },
+        ),
+        child: ListView(
+          children: [
+            ListTile(title: Text(isEnglish ? 'Account' : '帳戶')),
+            ListTile(
+              title: Text(isEnglish ? 'Change Phone' : '更換電話'),
+              onTap: () {},
             ),
-          ),
-          ListTile(
-            title: Text(isEnglish ? 'Language (Ch/En)' : '語言（中/英）'),
-            trailing: Switch(
-              value: isEnglish,
-              onChanged: (value) {
-                onLanguageChanged(value);
-              },
+            ListTile(
+              title: Text(isEnglish ? 'Password Settings' : '密碼設定'),
+              onTap: () {},
             ),
-          ),
-          ListTile(
-            title: Text(isEnglish ? 'Notification Settings' : '通知設定'),
-            onTap: () {},
-          ),
-          ListTile(
-            title: Text(isEnglish ? 'Diary Password Lock' : '本子密碼鎖'),
-            trailing: Switch(
-              value: isDiaryLocked,
-              onChanged: (value) {
-                if (value) {
-                  _showPasswordDialog(context);
-                } else {
-                  onDiaryLockChanged(false);
-                }
-              },
+            ListTile(
+              title: Text(isEnglish ? 'Theme (Light/Dark)' : '主題（明/暗）'),
+              trailing: Switch(
+                value: isDarkTheme,
+                onChanged: (value) {
+                  onThemeChanged(value);
+                },
+              ),
             ),
-          ),
-        ],
+            ListTile(
+              title: Text(isEnglish ? 'Language (Ch/En)' : '語言（中/英）'),
+              trailing: Switch(
+                value: isEnglish,
+                onChanged: (value) {
+                  onLanguageChanged(value);
+                },
+              ),
+            ),
+            ListTile(
+              title: Text(isEnglish ? 'Notification Settings' : '通知設定'),
+              onTap: () {},
+            ),
+            ListTile(
+              title: Text(isEnglish ? 'Diary Password Lock' : '本子密碼鎖'),
+              trailing: Switch(
+                value: isDiaryLocked,
+                onChanged: (value) {
+                  if (value) {
+                    _showPasswordDialog(context);
+                  } else {
+                    onDiaryLockChanged(false);
+                  }
+                },
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -111,135 +111,144 @@ class _ScenarioModeScreenState extends State<ScenarioModeScreen> {
 
     return Scaffold(
       appBar: AppBar(title: Text(widget.isEnglish ? 'Scenario Mode' : '情景模式')),
-      body: Column(
-        children: [
-          const SizedBox(height: 20),
-          // 模擬時鐘
-          SizedBox(
-            height: 200,
-            child: CustomPaint(
-              painter: ClockPainter(_dateTime),
-              child: Container(),
+      body: Container(
+        decoration: const BoxDecoration(
+          image: DecorationImage(
+            image: AssetImage('assets/picture/bg.jpg'),
+            fit: BoxFit.cover,
+          ),
+        ),
+        child: Column(
+          children: [
+            const SizedBox(height: 20),
+            // 模擬時鐘
+            SizedBox(
+              height: 200,
+              child: CustomPaint(
+                painter: ClockPainter(_dateTime),
+                child: Container(),
+              ),
             ),
-          ),
-          const SizedBox(height: 20),
-          // 正在播放
-          Text(
-            widget.isEnglish ? 'Now Playing:' : '正在播放：',
-            style: const TextStyle(fontSize: 16),
-          ),
-          Text(
-            widget.isEnglish
-                ? sortedList[currentIndex]['englishTitle']
-                : sortedList[currentIndex]['title'],
-            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 20),
-          // 控制按鈕
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              IconButton(
-                icon: Icon(
-                  sortedList[currentIndex]['liked']
-                      ? Icons.favorite
-                      : Icons.favorite_border,
-                  color: sortedList[currentIndex]['liked'] ? Colors.red : null,
+            const SizedBox(height: 20),
+            // 正在播放
+            Text(
+              widget.isEnglish ? 'Now Playing:' : '正在播放：',
+              style: const TextStyle(fontSize: 16),
+            ),
+            Text(
+              widget.isEnglish
+                  ? sortedList[currentIndex]['englishTitle']
+                  : sortedList[currentIndex]['title'],
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 20),
+            // 控制按鈕
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                IconButton(
+                  icon: Icon(
+                    sortedList[currentIndex]['liked']
+                        ? Icons.favorite
+                        : Icons.favorite_border,
+                    color:
+                        sortedList[currentIndex]['liked'] ? Colors.red : null,
+                  ),
+                  onPressed: () => _toggleFavorite(currentIndex),
                 ),
-                onPressed: () => _toggleFavorite(currentIndex),
-              ),
-              IconButton(
-                icon: Icon(
-                  isPlaying ? Icons.pause_circle : Icons.play_circle,
-                  size: 40,
-                  color: Colors.blue,
+                IconButton(
+                  icon: Icon(
+                    isPlaying ? Icons.pause_circle : Icons.play_circle,
+                    size: 40,
+                    color: Colors.blue,
+                  ),
+                  onPressed: () => _playMusic(currentIndex),
                 ),
-                onPressed: () => _playMusic(currentIndex),
+                IconButton(
+                  icon: const Icon(Icons.list, color: Colors.blue),
+                  onPressed: () async {
+                    final result = await showModalBottomSheet<int>(
+                      context: context,
+                      builder:
+                          (context) => ListView.builder(
+                            itemCount: sortedList.length,
+                            itemBuilder:
+                                (context, index) => ListTile(
+                                  leading: Icon(
+                                    sortedList[index]['liked']
+                                        ? Icons.favorite
+                                        : Icons.favorite_border,
+                                    color:
+                                        sortedList[index]['liked']
+                                            ? Colors.red
+                                            : null,
+                                  ),
+                                  title: Text(
+                                    widget.isEnglish
+                                        ? sortedList[index]['englishTitle']
+                                        : sortedList[index]['title'],
+                                  ),
+                                  onTap: () {
+                                    Navigator.pop(context, index);
+                                    _playMusic(index);
+                                  },
+                                ),
+                          ),
+                    );
+                    if (result != null) {
+                      setState(() {
+                        currentIndex = result;
+                      });
+                    }
+                  },
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            // 音樂列表標題
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  widget.isEnglish ? 'Music Selection' : '音樂選擇',
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
               ),
-              IconButton(
-                icon: const Icon(Icons.list, color: Colors.blue),
-                onPressed: () async {
-                  final result = await showModalBottomSheet<int>(
-                    context: context,
-                    builder:
-                        (context) => ListView.builder(
-                          itemCount: sortedList.length,
-                          itemBuilder:
-                              (context, index) => ListTile(
-                                leading: Icon(
-                                  sortedList[index]['liked']
-                                      ? Icons.favorite
-                                      : Icons.favorite_border,
-                                  color:
-                                      sortedList[index]['liked']
-                                          ? Colors.red
-                                          : null,
-                                ),
-                                title: Text(
-                                  widget.isEnglish
-                                      ? sortedList[index]['englishTitle']
-                                      : sortedList[index]['title'],
-                                ),
-                                onTap: () {
-                                  Navigator.pop(context, index);
-                                  _playMusic(index);
-                                },
-                              ),
-                        ),
+            ),
+            // 音樂列表
+            Expanded(
+              child: ListView.builder(
+                itemCount: sortedList.length,
+                itemBuilder: (context, index) {
+                  return ListTile(
+                    leading: IconButton(
+                      icon: const Icon(Icons.play_arrow, color: Colors.blue),
+                      onPressed: () => _playMusic(index),
+                    ),
+                    title: Text(
+                      widget.isEnglish
+                          ? sortedList[index]['englishTitle']
+                          : sortedList[index]['title'],
+                    ),
+                    trailing: IconButton(
+                      icon: Icon(
+                        sortedList[index]['liked']
+                            ? Icons.favorite
+                            : Icons.favorite_border,
+                        color: sortedList[index]['liked'] ? Colors.red : null,
+                      ),
+                      onPressed: () => _toggleFavorite(index),
+                    ),
                   );
-                  if (result != null) {
-                    setState(() {
-                      currentIndex = result;
-                    });
-                  }
                 },
               ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          // 音樂列表標題
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                widget.isEnglish ? 'Music Selection' : '音樂選擇',
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
             ),
-          ),
-          // 音樂列表
-          Expanded(
-            child: ListView.builder(
-              itemCount: sortedList.length,
-              itemBuilder: (context, index) {
-                return ListTile(
-                  leading: IconButton(
-                    icon: const Icon(Icons.play_arrow, color: Colors.blue),
-                    onPressed: () => _playMusic(index),
-                  ),
-                  title: Text(
-                    widget.isEnglish
-                        ? sortedList[index]['englishTitle']
-                        : sortedList[index]['title'],
-                  ),
-                  trailing: IconButton(
-                    icon: Icon(
-                      sortedList[index]['liked']
-                          ? Icons.favorite
-                          : Icons.favorite_border,
-                      color: sortedList[index]['liked'] ? Colors.red : null,
-                    ),
-                    onPressed: () => _toggleFavorite(index),
-                  ),
-                );
-              },
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

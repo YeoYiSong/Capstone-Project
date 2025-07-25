@@ -48,37 +48,45 @@ class _DiaryLockedScreenState extends State<DiaryLockedScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text(widget.isEnglish ? 'Locked Diary' : '本子已鎖定')),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              widget.isEnglish
-                  ? 'Please enter the password to unlock your diary'
-                  : '請輸入密碼以解鎖你的本子',
-              style: const TextStyle(fontSize: 20),
-            ),
-            const SizedBox(height: 20),
-            TextField(
-              controller: _passwordController,
-              obscureText: true,
-              decoration: InputDecoration(
-                hintText: widget.isEnglish ? 'Enter password' : '輸入密碼',
-                border: const OutlineInputBorder(),
-                errorText:
-                    _isPasswordIncorrect
-                        ? (widget.isEnglish ? 'Incorrect password' : '密碼錯誤')
-                        : null,
+      body: Container(
+        decoration: const BoxDecoration(
+          image: DecorationImage(
+            image: AssetImage('assets/picture/bg.jpg'),
+            fit: BoxFit.cover,
+          ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                widget.isEnglish
+                    ? 'Please enter the password to unlock your diary'
+                    : '請輸入密碼以解鎖你的本子',
+                style: const TextStyle(fontSize: 20),
               ),
-              onSubmitted: (_) => _verifyPassword(context),
-            ),
-            const SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: () => _verifyPassword(context),
-              child: Text(widget.isEnglish ? 'Unlock' : '解鎖'),
-            ),
-          ],
+              const SizedBox(height: 20),
+              TextField(
+                controller: _passwordController,
+                obscureText: true,
+                decoration: InputDecoration(
+                  hintText: widget.isEnglish ? 'Enter password' : '輸入密碼',
+                  border: const OutlineInputBorder(),
+                  errorText:
+                      _isPasswordIncorrect
+                          ? (widget.isEnglish ? 'Incorrect password' : '密碼錯誤')
+                          : null,
+                ),
+                onSubmitted: (_) => _verifyPassword(context),
+              ),
+              const SizedBox(height: 20),
+              ElevatedButton(
+                onPressed: () => _verifyPassword(context),
+                child: Text(widget.isEnglish ? 'Unlock' : '解鎖'),
+              ),
+            ],
+          ),
         ),
       ),
     );

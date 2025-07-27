@@ -440,9 +440,18 @@ def update_breath_feeling():
         connection.close()
 
 # 聊天機器人模組
-OLLAMA_API_URL = 'http://localhost:11434/api/chat'
+db = mysql.connector.connect(
+    host='127.0.0.1',
+    user='root',
+    password='',
+    database='sd',
+    charset='utf8mb4'
+)
+cursor = db.cursor()
 
-# === User/Session 工具 ===
+OLLAMA_API_URL = 'http://localhost:11434/api/chat'  # Ollama LLM API 端點
+
+# ============ 依 session 取得/判斷 user_id =============
 def get_user_id():
     user_id = session.get('user_id')
     if not user_id:
@@ -455,6 +464,7 @@ def get_user_id():
             user_id = request.args.get('user_id')
     return int(user_id) if user_id else 0
 
+# ============ 取得/設定目前聊天室名稱 ============
 def get_current_name():
     uid = get_user_id()
     key = f'current_conv_{uid}'
@@ -464,6 +474,7 @@ def set_current_name(conv_name):
     uid = get_user_id()
     session[f'current_conv_{uid}'] = conv_name
 
+# ============ 取得/儲存當前聊天室訊息 ============
 def get_messages():
     uid = get_user_id()
     key = f'messages_{uid}_{get_current_name()}'
@@ -474,36 +485,20 @@ def save_messages(messages):
     key = f'messages_{uid}_{get_current_name()}'
     session[key] = messages
 
+# ============ 儲存單一訊息到資料庫 ============
 def save_message_to_db(user_id, conversation, role, content):
-    connection = get_db_connection()
-    if not connection:
-        return
-    try:
-        cursor = connection.cursor()
-        sql = "INSERT INTO robot_chat_history (user_id, conversation, role, content, create_at) VALUES (%s, %s, %s, %s, %s)"
-        cursor.execute(sql, (user_id, conversation, role, content, datetime.now()))
-        connection.commit()
-    except Exception as e:
-        print(f"[DB] 儲存對話失敗: {e}")
-    finally:
-        cursor.close()
-        connection.close()
+    sql = "INSERT INTO robot_chat_history (user_id, conversation, role, content) VALUES (%s, %s, %s, %s)"
+    val = (user_id, conversation, role, content)
+    cursor.execute(sql, val)
+    db.commit()
 
+# ============ 更新聊天室名稱 (AI自動命名後) ============
 def update_conversation_name(user_id, old_name, new_name):
-    connection = get_db_connection()
-    if not connection:
-        return
-    try:
-        cursor = connection.cursor()
-        sql = "UPDATE robot_chat_history SET conversation=%s WHERE user_id=%s AND conversation=%s"
-        cursor.execute(sql, (new_name, user_id, old_name))
-        connection.commit()
-    except Exception as e:
-        print(f"[DB] 更新對話名稱失敗: {e}")
-    finally:
-        cursor.close()
-        connection.close()
+    sql = "UPDATE robot_chat_history SET conversation=%s WHERE user_id=%s AND conversation=%s"
+    cursor.execute(sql, (new_name, user_id, old_name))
+    db.commit()
 
+# ============ 利用AI產生聊天室標題 ============
 def ai_generate_title(first_message):
     payload = {
         "model": "gemma3:12b",
@@ -529,17 +524,23 @@ def ai_generate_title(first_message):
     except Exception:
         return "未命名聊天室"
 
+
+
+# ============ 切換聊天室 ============
 @app.route('/switch', methods=['POST'])
 def switch_conversation():
     user_id = get_user_id()
     name = request.json.get('conversation', '').strip() or 'default'
+    # 標記該聊天室是否已 AI 命名
     session[f'ai_titled_{user_id}'] = not name.startswith('untitled_')
     set_current_name(name)
+    # 初始化 session 中的訊息快取
     key = f'messages_{user_id}_{name}'
     if key not in session:
         session[key] = []
     return jsonify({'status': 'switched', 'conversation': name})
 
+# ============ 重設目前聊天室內容 ============
 @app.route('/reset', methods=['POST'])
 def reset_conversation():
     user_id = get_user_id()
@@ -547,110 +548,41 @@ def reset_conversation():
     session[key] = []
     return jsonify({'status': 'cleared', 'conversation': get_current_name()})
 
-@app.route('/delete_conversation', methods=['POST'])
-def delete_conversation():
-    user_id = get_user_id()
-    data = request.get_json()
-    conversation = data.get('conversation', '').strip()
-    if not conversation:
-        return jsonify({'error': 'Missing conversation name'}), 400
-
-    connection = get_db_connection()
-    if not connection:
-        return jsonify({'error': 'Database connection failed'}), 500
-
-    try:
-        cursor = connection.cursor()
-        sql = "DELETE FROM robot_chat_history WHERE user_id=%s AND conversation=%s"
-        cursor.execute(sql, (user_id, conversation))
-        connection.commit()
-        session.pop(f'messages_{user_id}_{conversation}', None)
-        return jsonify({'status': 'deleted', 'conversation': conversation}), 200
-    except Exception as e:
-        return jsonify({'error': f'Failed to delete conversation: {e}'}), 500
-    finally:
-        cursor.close()
-        connection.close()
-
-@app.route('/rename_conversation', methods=['POST'])
-def rename_conversation():
-    user_id = get_user_id()
-    data = request.get_json()
-    old_name = data.get('old_conversation', '').strip()
-    new_name = data.get('new_conversation', '').strip()
-    if not old_name or not new_name:
-        return jsonify({'error': 'Missing old_conversation or new_conversation'}), 400
-
-    connection = get_db_connection()
-    if not connection:
-        return jsonify({'error': 'Database connection failed'}), 500
-
-    try:
-        cursor = connection.cursor()
-        sql = "UPDATE robot_chat_history SET conversation=%s WHERE user_id=%s AND conversation=%s"
-        cursor.execute(sql, (new_name, user_id, old_name))
-        connection.commit()
-        session[f'messages_{user_id}_{new_name}'] = session.pop(f'messages_{user_id}_{old_name}', [])
-        if get_current_name() == old_name:
-            set_current_name(new_name)
-        return jsonify({'status': 'renamed', 'conversation': new_name}), 200
-    except Exception as e:
-        return jsonify({'error': f'Failed to rename conversation: {e}'}), 500
-    finally:
-        cursor.close()
-        connection.close()
-
+# ============ 取得該用戶所有聊天室清單 ============
 @app.route('/conversations', methods=['GET'])
 def list_conversations():
     user_id = get_user_id()
-    connection = get_db_connection()
-    if not connection:
-        return jsonify({'conversations': [], 'current': ''})
-    try:
-        cursor = connection.cursor()
-        sql = "SELECT DISTINCT conversation FROM robot_chat_history WHERE user_id=%s"
-        cursor.execute(sql, (user_id,))
-        conversations = [row[0] for row in cursor.fetchall()]
-        current = session.get(f'current_conv_{user_id}', 'default')
-        if current not in conversations:
-            conversations.append(current)
-        return jsonify({
-            'conversations': conversations,
-            'current': current
-        })
-    finally:
-        cursor.close()
-        connection.close()
+    sql = "SELECT DISTINCT conversation FROM robot_chat_history WHERE user_id=%s"
+    cursor.execute(sql, (user_id,))
+    conversations = [row[0] for row in cursor.fetchall()]
+    current = session.get(f'current_conv_{user_id}', 'default')
+    if current not in conversations:
+        conversations.append(current)
+    return jsonify({
+        'conversations': conversations,
+        'current': current
+    })
 
+# ============ 取得目前聊天室歷史訊息 ============
 @app.route('/history', methods=['GET'])
 def get_history():
     user_id = get_user_id()
     conversation = get_current_name()
-    connection = get_db_connection()
-    if not connection:
-        return jsonify({'history': []})
-    try:
-        cursor = connection.cursor(dictionary=True)
-        sql = "SELECT role, content, create_at FROM robot_chat_history WHERE user_id=%s AND conversation=%s ORDER BY id"
-        cursor.execute(sql, (user_id, conversation))
-        rows = cursor.fetchall()
-        history = [
-            {'role': row['role'], 'content': row['content'], 'create_at': row['create_at'].isoformat()}
-            for row in rows
-            if row['content'] and row['content'].strip()
-        ]
-        return jsonify({'history': history})
-    finally:
-        cursor.close()
-        connection.close()
+    sql = "SELECT role, content FROM robot_chat_history WHERE user_id=%s AND conversation=%s ORDER BY id"
+    cursor.execute(sql, (user_id, conversation))
+    rows = cursor.fetchall()
+    history = [
+        {'role': role, 'content': content}
+        for (role, content) in rows
+        if content and content.strip()
+    ]
+    return jsonify({'history': history})
 
+# ============ 發送訊息/串流回覆 ============
 @app.route('/chat', methods=['POST'])
 def chat():
     user_id = get_user_id()
-    data = request.get_json()
-    user_message = data.get('message', '').strip()
-    lang = data.get("language", "zh")
-
+    user_message = request.json.get('message', '').strip()
     conversation = get_current_name()
     is_new_conv = conversation.startswith("untitled_")
     ai_titled = session.get(f'ai_titled_{user_id}', False)
@@ -658,11 +590,8 @@ def chat():
     if not user_message:
         return Response('', content_type='text/plain')
 
-    system_lang_prompt = {
-        "en": "Please reply in English.",
-        "zh": "請用繁體中文回答。"
-    }.get(lang, "請用繁體中文回答。")
     messages = get_messages()
+    # 若為新聊天室，加上預設 system prompt
     if not messages:
         messages.append({
             'role': 'system',
@@ -671,21 +600,24 @@ def chat():
                 '不用太正式，像平常朋友聊天一樣就好，溫暖、有共鳴，讓我覺得被理解就好。'
             )
         })
-    messages.append({'role': 'system', 'content': system_lang_prompt})
+
     messages.append({'role': 'user', 'content': user_message})
     save_message_to_db(user_id, conversation, 'user', user_message)
 
+    # 若是新聊天室且未 AI 命名，呼叫 AI 產生新標題並切換
     if is_new_conv and not ai_titled:
         title = ai_generate_title(user_message)
         update_conversation_name(user_id, conversation, title)
         set_current_name(title)
         session[f'ai_titled_{user_id}'] = True
+        # 轉移 session 快取
         session[f'messages_{user_id}_{title}'] = session.pop(f'messages_{user_id}_{conversation}')
         conversation = title
 
+    # 只取最後 6 則用戶訊息 + system prompt 給 LLM
     trimmed = [m for m in messages if m['role'] != 'system']
     session_msgs = messages[:1] + trimmed[-6:]
-    save_messages(session_msgs)
+    save_messages(messages)
 
     payload = {
         'model': 'gemma3:12b',
@@ -712,14 +644,16 @@ def chat():
         except Exception as e:
             yield f'[連線錯誤：{e}]'
 
+        # 傳完訊息再將 assistant 回覆寫入 session 及資料庫
         if full_response['value'].strip():
             msgs = get_messages()
             msgs.append({'role': 'assistant', 'content': full_response['value']})
             save_messages(msgs)
             save_message_to_db(user_id, conversation, 'assistant', full_response['value'])
 
-    return Response(generate(), content_type='text/plain; charset=utf-8')
+    return Response(generate(), content_type='text/plain')
 
+# ============ 產生並儲存摘要 ============
 @app.route('/finalize', methods=['POST'])
 def finalize_conversation():
     user_id = get_user_id()
@@ -730,6 +664,7 @@ def finalize_conversation():
     save_summary_to_db(user_id, summary)
     return jsonify({'status': 'summary_saved', 'summary': summary})
 
+# ============ 呼叫 AI 產生摘要 ============
 def generate_summary(messages):
     full_content = ''
     for m in messages:
@@ -760,19 +695,13 @@ def generate_summary(messages):
     except Exception as e:
         return f"[摘要失敗：{e}]"
 
+# ============ 儲存摘要到資料庫 ============
 def save_summary_to_db(user_id, summary):
-    connection = get_db_connection()
-    if not connection:
-        return
-    try:
-        cursor = connection.cursor()
-        sql = "INSERT INTO robot_chat (user_id, summary, keywords, emotion_tag) VALUES (%s, %s, %s, %s)"
-        val = (user_id, summary, '', '')
-        cursor.execute(sql, val)
-        connection.commit()
-    finally:
-        cursor.close()
-        connection.close()
+    sql = "INSERT INTO robot_chat (user_id, summary, keywords, emotion_tag) VALUES (%s, %s, %s, %s)"
+    val = (user_id, summary, '', '')
+    cursor.execute(sql, val)
+    db.commit()
 
+# ============ 啟動 Flask 伺服器 ============
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(host='127.0.0.1', port=5000, debug=False)

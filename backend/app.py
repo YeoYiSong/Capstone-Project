@@ -7,8 +7,10 @@ from datetime import datetime
 from flask_session import Session
 import requests
 import contextlib
+import chromadb
+import re
 
-app = Flask(__name__)
+app = Flask(__name__,)
 CORS(app, supports_credentials=True)
 
 app.config['SECRET_KEY'] = 'replace_with_your_own_secret_key'
@@ -21,6 +23,16 @@ db_config = {
     'password': '',
     'database': 'sd'
 }
+
+
+# --- 初始化 ChromaDB 向量資料庫 ---
+client = chromadb.PersistentClient(path=r"d:/大四專題/oil/oilmodule/backend/chroma_db")#需更改位置
+col = client.get_or_create_collection(name="essential_oils")
+
+# --- LLM API 參數 ---
+OLLAMA_CHAT_URL = 'http://localhost:11434/api/chat'
+OLLAMA_EMBED_URL = 'http://localhost:11434/api/embed'
+EMBED_MODEL = 'nn200433/text2vec-bge-large-chinese'
 
 def get_db_connection():
     try:
@@ -702,6 +714,311 @@ def save_summary_to_db(user_id, summary):
     cursor.execute(sql, val)
     db.commit()
 
+# --- 用 OLLAMA 取得文字向量 ---
+def embed_text(text):
+    resp = requests.post(
+        OLLAMA_EMBED_URL,
+        json={'model': EMBED_MODEL, 'input': text}
+    )
+    data = resp.json()
+    if 'error' in data:
+        raise RuntimeError(f"Ollama 回傳錯誤: {data['error']}")
+    vecs = data.get('embeddings') or data.get('embedding')
+    if vecs is None:
+        raise RuntimeError(f"Embed API 回傳格式異常: {data}")
+    return vecs[0] if isinstance(vecs[0], list) else vecs
+
+# --- 用 LLM 產生摘要與主題 ---
+def analyze_content_with_ai(diary):
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                "你是一個只能輸出 JSON 的 AI 模型，請閱讀使用者的日記內容，"
+                "生成一段具有情緒、原因與內心反應的摘要，長度約 100-150 字。\n"
+                "並回傳以下 JSON 格式：\n"
+                "{\n"
+                "  \"summary\": \"（摘要文字）\",\n"
+                "  \"themes\": [\n"
+                "    \"請具體描述主題，例如：\",\n"
+                "    \"因為失眠導致情緒不穩\",\n"
+                "    \"與母親互動感到溫暖\",\n"
+                "    \"對未來不確定性感到焦慮\"\n"
+                "  ]\n"
+                "}\n"
+                "⚠️ 只能輸出 JSON，不能包含說明、標題或開場白。"
+            )
+        },
+        {
+            "role": "user",
+            "content": diary
+        }
+    ]
+
+    payload = {
+        'model': 'gemma3:12b',
+        'messages': messages,
+        'stream': False,
+        'options': {
+            'num_gpu': 1,
+            'low_vram': False,
+            'main_gpu': 0,
+            'num_ctx': 8192,
+            'num_thread': 12,
+            'keep_alive': -1
+        }
+    }
+
+    try:
+        # 請求 LLM 產生摘要
+        resp = requests.post(OLLAMA_CHAT_URL, json=payload, timeout=300)
+        resp.raise_for_status()
+        content = resp.json().get("message", {}).get("content", "").strip()
+        match = re.search(r'{.*}', content, re.DOTALL)
+        if not match:
+            raise json.JSONDecodeError("找不到 JSON 區段", content, 0)
+        clean_json = match.group(0)
+        parsed = json.loads(clean_json)
+        return {
+            "summary": parsed.get("summary", ""),
+            "themes": parsed.get("themes", [])
+        }
+    except Exception as e:
+        return {
+            "summary": "",
+            "themes": [],
+            "error": str(e)
+        }
+
+# --- API: 今日情緒摘要與主題 ---
+@app.route('/analyze_today_all', methods=['GET'])
+def analyze_today_all():
+    today_str = datetime.now().strftime('%Y-%m-%d')
+    user_id = request.args.get('user_id')
+
+    # 查詢 today 當天所有 now 紀錄
+    sql_now = """
+    SELECT id, note, joy, sadness, anger, positive, anxiety, exhaust
+    FROM now
+    WHERE DATE(create_at) = %s AND user_id = %s
+    """
+    cursor.execute(sql_now, (today_str, user_id))
+    now_records = cursor.fetchall()
+
+    # 查詢 diaries 當天日記
+    sql_diary = """
+    SELECT id, content, joy, sadness, anger, positive, anxiety, exhaust
+    FROM diaries
+    WHERE DATE(create_at) = %s AND user_id = %s
+    LIMIT 1
+    """
+    cursor.execute(sql_diary, (today_str, user_id))
+    diary = cursor.fetchone()
+
+    # 沒有資料則回傳錯誤
+    if not now_records and not diary:
+        return jsonify({'error': '今天沒有任何資料'}), 404
+
+    # 組合 all_text 當作 prompt 給 LLM 分析
+    all_text = ""
+    if diary:
+        all_text += (
+            f"【今日日記】\n"
+            f"內容：{diary['content']}\n"
+            f"情緒指標："
+            f"喜悅（joy）：{diary['joy']}，"
+            f"悲傷（sadness）：{diary['sadness']}，"
+            f"憤怒（anger）：{diary['anger']}，"
+            f"正向（positive）：{diary['positive']}，"
+            f"焦慮（anxiety）：{diary['anxiety']}，"
+            f"疲憊（exhaust）：{diary['exhaust']}\n\n"
+        )
+    if now_records:
+        for idx, rec in enumerate(now_records, start=1):
+            all_text += (
+                f"【即時紀錄{idx}】\n"
+                f"內容：{rec['note']}\n"
+                f"情緒指標："
+                f"喜悅（joy）：{rec['joy']}，"
+                f"悲傷（sadness）：{rec['sadness']}，"
+                f"憤怒（anger）：{rec['anger']}，"
+                f"正向（positive）：{rec['positive']}，"
+                f"焦慮（anxiety）：{rec['anxiety']}，"
+                f"疲憊（exhaust）：{rec['exhaust']}\n\n"
+            )
+
+    # 加上 LLM prompt
+    all_text += "請根據今天所有日記與即時紀錄內容、情緒數值，產生一段全日總結（100-150字），並列出具體主題（例如：人際關係、壓力來源、學業等）。"
+
+    # 送到 LLM 取得摘要結果
+    ai_result = analyze_content_with_ai(all_text)
+
+    # 回傳 JSON 給前端
+    return jsonify({
+        "summary": ai_result.get("summary", ""),
+        "themes": ai_result.get("themes", []),
+        "now_count": len(now_records),
+        "has_diary": bool(diary)
+    })
+
+# --- API: 精油推薦（用摘要或日記都可）---
+@app.route('/analyze', methods=['POST'])
+def analyze():
+    data = request.get_json(silent=True) or {}
+    diary = data.get('diary', '').strip()
+    if not diary:
+        return jsonify({'error': '請輸入日記內容'}), 400
+
+    # 1. 產生日記向量，查詢語意最接近的精油（取前三個）
+    try:
+        qvec = embed_text(diary)
+        results = col.query(query_embeddings=[qvec], n_results=3)
+        oil_docs = results['documents'][0]
+        oil_ids = results['ids'][0]
+        if not oil_docs:
+            return jsonify({"error": "查無相關精油，請確認資料庫有資料"}), 404
+    except Exception as e:
+        return jsonify({'error': f'精油向量查詢失敗：{e}'}), 500
+
+    # 2. 建立給 LLM 的精油候選清單
+    candidates = '\n'.join([f"{idx+1}. {oil_docs[idx]}" for idx in range(len(oil_docs))])
+
+    # 3. 用 LLM 選最適合精油與理由
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                "你是一位芳療專家，根據下方日記內容和精油候選名單，"
+                "只能從候選名單選出最適合的一款精油，並嚴格按照如下 JSON 格式回覆："
+                "{\"oil\":\"精油名稱\",\"reason\":\"推薦理由（必須超過20字且不可留空）\"}。"
+                "不能創造名單外的精油，不能省略任何欄位，不能只給名稱，不可回覆其他說明或格式。\n"
+                f"候選精油：\n{candidates}"
+            )
+        },
+        {
+            "role": "user",
+            "content": f"日記內容：\n{diary}"
+        }
+    ]
+
+    payload = {
+        'model': 'gemma3:12b',
+        'messages': messages,
+        'stream': False,
+        'options': {
+            'num_gpu': 1,
+            'main_gpu': 0,
+            'low_vram': False,
+            'num_ctx': 8192,
+            'keep_alive': -1
+        }
+    }
+
+    try:
+        # 請求 LLM 給予精油推薦
+        resp = requests.post(OLLAMA_CHAT_URL, json=payload, timeout=180)
+        resp.raise_for_status()
+        content = resp.json().get("message", {}).get("content", "").strip()
+        match = re.search(r'\{.*?\}', content, re.DOTALL)
+        parsed = json.loads(match.group(0)) if match else {}
+        oil_name = parsed.get("oil", "")
+        reason = parsed.get("reason", "")
+        print("AI raw output:", content)
+
+    except Exception as e:
+        return jsonify({'error': f'AI推薦失敗/格式錯誤：{e}', 'raw': content if 'content' in locals() else ''}), 500
+
+    # 4. 回傳推薦精油與描述
+    oil_desc = ""
+    for doc in oil_docs:
+        if oil_name and doc.startswith(oil_name):
+            oil_desc = doc
+            break
+    if not oil_desc:
+        oil_desc = "查無精油功效（模型可能回傳了名單外的精油，請再試一次）。"
+    if not reason:
+        reason = "AI未正確給出推薦理由，請重新嘗試。"
+
+    return jsonify({
+        "oil": oil_name,
+        "oil_desc": oil_desc,
+        "reason": reason,
+        "candidates": oil_docs,
+        "diary": diary
+    })
+
+
+@app.route('/recommend_today_oil', methods=['GET'])
+def recommend_today_oil():
+    user_id = request.args.get('user_id')
+    if not user_id:
+        return jsonify({"error": "請帶上 user_id"}), 400
+
+    print("Step 1: Start get summary...")
+    try:
+        # 1. 先取得當天情緒摘要
+        summary_resp = requests.get(
+            "http://127.0.0.1:5000/analyze_today_all",
+            params={'user_id': user_id},
+            timeout=120
+        )
+        summary_json = summary_resp.json()
+        summary_text = summary_json.get('summary', '')
+        print("Step 1: Got summary:", summary_text)
+        if not summary_text:
+            return jsonify({"error": "找不到今日摘要", "raw": summary_json}), 400
+    except Exception as e:
+        print("Step 1 failed:", e)
+        return jsonify({"error": f"今日摘要API失敗: {e}"}), 500
+
+    print("Step 2: Start analyze...")
+    try:
+        # 2. 再用摘要去推薦精油
+        analyze_resp = requests.post(
+            "http://127.0.0.1:5000/analyze",
+            json={'diary': summary_text},
+            timeout=120
+        )
+        analyze_json = analyze_resp.json()
+        print("Step 2: Got analyze:", analyze_json)
+    except Exception as e:
+        print("Step 2 failed:", e)
+        return jsonify({"error": f"推薦精油API失敗: {e}"}), 500
+
+    # 只取精油名稱
+    oil_name = analyze_json.get('oil', '').strip()
+    if not oil_name:
+        return jsonify({"error": "AI 沒有推薦精油名稱", "raw": analyze_json}), 400
+
+    print("Step 3: 查詢油品 id...")
+    try:
+        # 3. 查詢精油 id
+        sql = "SELECT id FROM oil WHERE name = %s"
+        cursor.execute(sql, (oil_name,))
+        row = cursor.fetchone()
+        if not row:
+            return jsonify({"error": f"資料庫查無精油名稱: {oil_name}"}), 400
+        oil_id = row['id']
+    except Exception as e:
+        print("Step 3 failed:", e)
+        return jsonify({"error": f"查詢油品失敗: {e}"}), 500
+
+    print(f"Step 4: 更新使用者 {user_id} 的 oil_id -> {oil_id}")
+    try:
+        # 4. 更新 user 的 oil_id
+        sql_update = "UPDATE users SET oil_id = %s WHERE id = %s"
+        cursor.execute(sql_update, (oil_id, user_id))
+        db.commit()
+    except Exception as e:
+        print("Step 4 failed:", e)
+        return jsonify({"error": f"更新使用者 oil_id 失敗: {e}"}), 500
+
+    return jsonify({
+        "oil": oil_name,
+        "oil_id": oil_id,
+        "status": "success"
+    })
+
 # ============ 啟動 Flask 伺服器 ============
 if __name__ == '__main__':
-    app.run(host='127.0.0.1', port=5000, debug=False)
+    app.run(host='127.0.0.1', port=5000, debug=True, threaded=True)

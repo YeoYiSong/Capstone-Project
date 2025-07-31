@@ -9,8 +9,9 @@ import requests
 import contextlib
 import chromadb
 import re
+from itertools import chain
 
-app = Flask(__name__,)
+app = Flask(__name__)
 CORS(app, supports_credentials=True)
 
 app.config['SECRET_KEY'] = 'replace_with_your_own_secret_key'
@@ -24,9 +25,8 @@ db_config = {
     'database': 'sd'
 }
 
-
 # --- 初始化 ChromaDB 向量資料庫 ---
-client = chromadb.PersistentClient(path=r"d:/大四專題/oil/oilmodule/backend/chroma_db")#需更改位置
+client = chromadb.PersistentClient(path=r"C:\demosmaily\backend\chroma_db")  # 需更改位置
 col = client.get_or_create_collection(name="essential_oils")
 
 # --- LLM API 參數 ---
@@ -133,7 +133,7 @@ def register_user_if_not_exists():
 @app.route('/save_diary_entry', methods=['POST'])
 def save_diary_entry():
     data = request.get_json()
-    user_id = session.get('user_id')
+    user_id = session.get('user_id')or data.get('user_id')
     date = data.get('date')
     type = data.get('type')
     emotions = data.get('emotions')
@@ -221,7 +221,7 @@ def save_diary_entry():
 
 @app.route('/get_diary_entries/<date>', methods=['GET'])
 def get_diary_entries(date):
-    user_id = session.get('user_id')
+    user_id = session.get('user_id') or request.args.get('user_id')
     if not user_id:
         return jsonify({'error': 'Missing user_id'}), 400
 
@@ -277,7 +277,7 @@ def get_diary_entries(date):
 
 @app.route('/get_all_diary_entries', methods=['GET'])
 def get_all_diary_entries():
-    user_id = session.get('user_id')
+    user_id = session.get('user_id') or request.args.get('user_id')
     if not user_id:
         return jsonify({'error': 'Missing user_id'}), 400
 
@@ -330,7 +330,7 @@ def get_all_diary_entries():
 @app.route('/breath_record', methods=['POST'])
 def add_breath_record():
     data = request.get_json()
-    user_id = session.get('user_id')
+    user_id = session.get('user_id')or data.get('user_id')
     duration = data.get('duration')
     min_value = data.get('min')
     feeling = data.get('feeling')
@@ -360,7 +360,7 @@ def add_breath_record():
 
 @app.route('/breath_record/<date>', methods=['GET'])
 def get_breath_records_by_date(date):
-    user_id = session.get('user_id')
+    user_id = session.get('user_id') or request.args.get('user_id')
     if not user_id:
         return jsonify({'error': 'Missing or invalid user_id'}), 400
 
@@ -452,15 +452,6 @@ def update_breath_feeling():
         connection.close()
 
 # 聊天機器人模組
-db = mysql.connector.connect(
-    host='127.0.0.1',
-    user='root',
-    password='',
-    database='sd',
-    charset='utf8mb4'
-)
-cursor = db.cursor()
-
 OLLAMA_API_URL = 'http://localhost:11434/api/chat'  # Ollama LLM API 端點
 
 # ============ 依 session 取得/判斷 user_id =============
@@ -480,6 +471,10 @@ def get_user_id():
 def get_current_name():
     uid = get_user_id()
     key = f'current_conv_{uid}'
+    if key not in session:
+        new_name = f"untitled_{datetime.now().strftime('%H%M%S')}"
+        session[key] = new_name
+        session[f'ai_titled_{uid}'] = False  
     return session.get(key, 'default')
 
 def set_current_name(conv_name):
@@ -498,17 +493,47 @@ def save_messages(messages):
     session[key] = messages
 
 # ============ 儲存單一訊息到資料庫 ============
-def save_message_to_db(user_id, conversation, role, content):
-    sql = "INSERT INTO robot_chat_history (user_id, conversation, role, content) VALUES (%s, %s, %s, %s)"
-    val = (user_id, conversation, role, content)
-    cursor.execute(sql, val)
-    db.commit()
+def save_message_to_db(user_id, conversation, role, content, create_at=None):
+    create_at = create_at or datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    conn = get_db_connection()
+    if conn is None:
+        return
+    try:
+        cursor = conn.cursor()
+        sql = "INSERT INTO robot_chat_history (user_id, conversation, role, content, create_at) VALUES (%s, %s, %s, %s, %s)"
+        val = (user_id, conversation, role, content, create_at)
+        cursor.execute(sql, val)
+        conn.commit()
+    finally:
+        cursor.close()
+        conn.close()
+        
+@app.route('/update_conversation', methods=['POST'])
+def rename_conversation_api():
+    data = request.json
+    user_id = get_user_id()
+    old_name = data.get('old_name')
+    new_name = data.get('new_name')
+
+    if not all([user_id, old_name, new_name]):
+        return jsonify({'error': '缺少必要參數'}), 400
+
+    update_conversation_name(user_id, old_name, new_name)
+    return jsonify({'status': 'ok', 'message': '聊天室名稱已更新'})
 
 # ============ 更新聊天室名稱 (AI自動命名後) ============
 def update_conversation_name(user_id, old_name, new_name):
-    sql = "UPDATE robot_chat_history SET conversation=%s WHERE user_id=%s AND conversation=%s"
-    cursor.execute(sql, (new_name, user_id, old_name))
-    db.commit()
+    conn = get_db_connection()
+    if conn is None:
+        return
+    try:
+        cursor = conn.cursor()
+        sql = "UPDATE robot_chat_history SET conversation=%s WHERE user_id=%s AND conversation=%s"
+        cursor.execute(sql, (new_name, user_id, old_name))
+        conn.commit()
+    finally:
+        cursor.close()
+        conn.close()
 
 # ============ 利用AI產生聊天室標題 ============
 def ai_generate_title(first_message):
@@ -519,7 +544,7 @@ def ai_generate_title(first_message):
                 "role": "system",
                 "content":  "你是一個對話標題產生器。"
                             "請你根據下方訊息內容，**只回一個 8~16 字內的明確主題作為標題**，不要多加解釋、不要加入任何標點符號，也不要問問題。"
-                            "直接列出主題即可，例如：『工作壓力抒發』、『與朋友聚餐心得』、『心情低落的週末』。"
+                            "直接列出主題即可，例如：工作壓力抒發、與朋友聚餐心得、心情低落的週末。"
             },
             {
                 "role": "user",
@@ -536,17 +561,13 @@ def ai_generate_title(first_message):
     except Exception:
         return "未命名聊天室"
 
-
-
 # ============ 切換聊天室 ============
 @app.route('/switch', methods=['POST'])
 def switch_conversation():
     user_id = get_user_id()
     name = request.json.get('conversation', '').strip() or 'default'
-    # 標記該聊天室是否已 AI 命名
     session[f'ai_titled_{user_id}'] = not name.startswith('untitled_')
     set_current_name(name)
-    # 初始化 session 中的訊息快取
     key = f'messages_{user_id}_{name}'
     if key not in session:
         session[key] = []
@@ -560,35 +581,83 @@ def reset_conversation():
     session[key] = []
     return jsonify({'status': 'cleared', 'conversation': get_current_name()})
 
+# ============ 刪除聊天室 ============
+@app.route('/delete', methods=['POST'])
+def delete_conversation():
+    user_id = get_user_id()
+    if not user_id:
+        return jsonify({'error': 'Missing user_id'}), 400
+    conversation = request.json.get('conversation')
+    if not conversation or conversation == 'default':
+        return jsonify({'error': 'Cannot delete default conversation'}), 400
+
+    conn = get_db_connection()
+    if conn is None:
+        return jsonify({'error': 'Database connection failed'}), 500
+
+    try:
+        cursor = conn.cursor()
+        query = "DELETE FROM robot_chat_history WHERE user_id = %s AND conversation = %s"
+        cursor.execute(query, (user_id, conversation))
+        conn.commit()
+        return jsonify({'status': 'deleted'}), 200
+    except Error as e:
+        return jsonify({'error': f'Failed to delete conversation: {e}'}), 500
+    finally:
+        cursor.close()
+        conn.close()
+
+
 # ============ 取得該用戶所有聊天室清單 ============
 @app.route('/conversations', methods=['GET'])
 def list_conversations():
     user_id = get_user_id()
-    sql = "SELECT DISTINCT conversation FROM robot_chat_history WHERE user_id=%s"
-    cursor.execute(sql, (user_id,))
-    conversations = [row[0] for row in cursor.fetchall()]
-    current = session.get(f'current_conv_{user_id}', 'default')
-    if current not in conversations:
-        conversations.append(current)
-    return jsonify({
-        'conversations': conversations,
-        'current': current
-    })
+    conn = get_db_connection()
+    if conn is None:
+        return jsonify({'error': 'Database connection failed'}), 500
+
+    try:
+        cursor = conn.cursor()
+        sql = "SELECT DISTINCT conversation FROM robot_chat_history WHERE user_id=%s"
+        cursor.execute(sql, (user_id,))
+        conversations = [row[0] for row in cursor.fetchall()]
+        current = session.get(f'current_conv_{user_id}', 'default')
+        if current not in conversations:
+            conversations.append(current)
+        return jsonify({
+            'conversations': conversations,
+            'current': current
+        })
+    finally:
+        cursor.close()
+        conn.close()
+
 
 # ============ 取得目前聊天室歷史訊息 ============
 @app.route('/history', methods=['GET'])
 def get_history():
     user_id = get_user_id()
-    conversation = get_current_name()
-    sql = "SELECT role, content FROM robot_chat_history WHERE user_id=%s AND conversation=%s ORDER BY id"
-    cursor.execute(sql, (user_id, conversation))
-    rows = cursor.fetchall()
-    history = [
-        {'role': role, 'content': content}
-        for (role, content) in rows
-        if content and content.strip()
-    ]
-    return jsonify({'history': history})
+    conversation = request.args.get('conversation')
+
+    conn = get_db_connection()
+    if conn is None:
+        return jsonify({'error': 'Database connection failed'}), 500
+
+    try:
+        cursor = conn.cursor()
+        sql = "SELECT role, content, create_at FROM robot_chat_history WHERE user_id=%s AND conversation=%s ORDER BY id"
+        cursor.execute(sql, (user_id, conversation))
+        rows = cursor.fetchall()
+        history = [
+            {'role': role, 'content': content, 'create_at': create_at.strftime('%Y-%m-%d %H:%M:%S')}
+            for (role, content, create_at) in rows
+            if content and content.strip()
+        ]
+        return jsonify({'history': history})
+    finally:
+        cursor.close()
+        conn.close()
+
 
 # ============ 發送訊息/串流回覆 ============
 @app.route('/chat', methods=['POST'])
@@ -603,7 +672,6 @@ def chat():
         return Response('', content_type='text/plain')
 
     messages = get_messages()
-    # 若為新聊天室，加上預設 system prompt
     if not messages:
         messages.append({
             'role': 'system',
@@ -616,17 +684,16 @@ def chat():
     messages.append({'role': 'user', 'content': user_message})
     save_message_to_db(user_id, conversation, 'user', user_message)
 
-    # 若是新聊天室且未 AI 命名，呼叫 AI 產生新標題並切換
+    send_conv_name = None
     if is_new_conv and not ai_titled:
         title = ai_generate_title(user_message)
         update_conversation_name(user_id, conversation, title)
         set_current_name(title)
         session[f'ai_titled_{user_id}'] = True
-        # 轉移 session 快取
         session[f'messages_{user_id}_{title}'] = session.pop(f'messages_{user_id}_{conversation}')
         conversation = title
+        send_conv_name = title  # 用來稍後 yield CONVERSATION_NAME
 
-    # 只取最後 6 則用戶訊息 + system prompt 給 LLM
     trimmed = [m for m in messages if m['role'] != 'system']
     session_msgs = messages[:1] + trimmed[-6:]
     save_messages(messages)
@@ -656,14 +723,19 @@ def chat():
         except Exception as e:
             yield f'[連線錯誤：{e}]'
 
-        # 傳完訊息再將 assistant 回覆寫入 session 及資料庫
         if full_response['value'].strip():
             msgs = get_messages()
             msgs.append({'role': 'assistant', 'content': full_response['value']})
             save_messages(msgs)
             save_message_to_db(user_id, conversation, 'assistant', full_response['value'])
 
-    return Response(generate(), content_type='text/plain')
+    if send_conv_name:
+        def name_stream():
+            yield f"CONVERSATION_NAME:{send_conv_name}\n"
+
+        return Response(stream_with_context(chain(name_stream(), generate())), content_type='text/plain')
+    else:
+        return Response(generate(), content_type='text/plain')
 
 # ============ 產生並儲存摘要 ============
 @app.route('/finalize', methods=['POST'])
@@ -711,8 +783,15 @@ def generate_summary(messages):
 def save_summary_to_db(user_id, summary):
     sql = "INSERT INTO robot_chat (user_id, summary, keywords, emotion_tag) VALUES (%s, %s, %s, %s)"
     val = (user_id, summary, '', '')
-    cursor.execute(sql, val)
-    db.commit()
+    conn = get_db_connection()
+    if conn is None:
+        return
+    try:
+        with conn.cursor() as cursor:
+            cursor.execute(sql, val)
+            conn.commit()
+    finally:
+        conn.close()
 
 # --- 用 OLLAMA 取得文字向量 ---
 def embed_text(text):
@@ -770,7 +849,6 @@ def analyze_content_with_ai(diary):
     }
 
     try:
-        # 請求 LLM 產生摘要
         resp = requests.post(OLLAMA_CHAT_URL, json=payload, timeout=300)
         resp.raise_for_status()
         content = resp.json().get("message", {}).get("content", "").strip()
@@ -795,65 +873,56 @@ def analyze_content_with_ai(diary):
 def analyze_today_all():
     today_str = datetime.now().strftime('%Y-%m-%d')
     user_id = request.args.get('user_id')
+    conn = get_db_connection()
+    if conn is None:
+        return jsonify({'error': 'Database connection failed'}), 500
 
-    # 查詢 today 當天所有 now 紀錄
-    sql_now = """
-    SELECT id, note, joy, sadness, anger, positive, anxiety, exhaust
-    FROM now
-    WHERE DATE(create_at) = %s AND user_id = %s
-    """
-    cursor.execute(sql_now, (today_str, user_id))
-    now_records = cursor.fetchall()
+    try:
+        cursor = conn.cursor(dictionary=True)
 
-    # 查詢 diaries 當天日記
-    sql_diary = """
-    SELECT id, content, joy, sadness, anger, positive, anxiety, exhaust
-    FROM diaries
-    WHERE DATE(create_at) = %s AND user_id = %s
-    LIMIT 1
-    """
-    cursor.execute(sql_diary, (today_str, user_id))
-    diary = cursor.fetchone()
+        sql_now = """
+        SELECT id, note, joy, sadness, anger, positive, anxiety, exhaust
+        FROM now
+        WHERE DATE(create_at) = %s AND user_id = %s
+        """
+        cursor.execute(sql_now, (today_str, user_id))
+        now_records = cursor.fetchall()
 
-    # 沒有資料則回傳錯誤
+        sql_diary = """
+        SELECT id, content, joy, sadness, anger, positive, anxiety, exhaust
+        FROM diaries
+        WHERE DATE(create_at) = %s AND user_id = %s
+        LIMIT 1
+        """
+        cursor.execute(sql_diary, (today_str, user_id))
+        diary = cursor.fetchone()
+    finally:
+        conn.close()
+
     if not now_records and not diary:
         return jsonify({'error': '今天沒有任何資料'}), 404
 
-    # 組合 all_text 當作 prompt 給 LLM 分析
     all_text = ""
     if diary:
         all_text += (
             f"【今日日記】\n"
             f"內容：{diary['content']}\n"
-            f"情緒指標："
-            f"喜悅（joy）：{diary['joy']}，"
-            f"悲傷（sadness）：{diary['sadness']}，"
-            f"憤怒（anger）：{diary['anger']}，"
-            f"正向（positive）：{diary['positive']}，"
-            f"焦慮（anxiety）：{diary['anxiety']}，"
-            f"疲憊（exhaust）：{diary['exhaust']}\n\n"
+            f"情緒指標：喜悅（joy）：{diary['joy']}，悲傷（sadness）：{diary['sadness']}，"
+            f"憤怒（anger）：{diary['anger']}，正向（positive）：{diary['positive']}，"
+            f"焦慮（anxiety）：{diary['anxiety']}，疲憊（exhaust）：{diary['exhaust']}\n\n"
         )
-    if now_records:
-        for idx, rec in enumerate(now_records, start=1):
-            all_text += (
-                f"【即時紀錄{idx}】\n"
-                f"內容：{rec['note']}\n"
-                f"情緒指標："
-                f"喜悅（joy）：{rec['joy']}，"
-                f"悲傷（sadness）：{rec['sadness']}，"
-                f"憤怒（anger）：{rec['anger']}，"
-                f"正向（positive）：{rec['positive']}，"
-                f"焦慮（anxiety）：{rec['anxiety']}，"
-                f"疲憊（exhaust）：{rec['exhaust']}\n\n"
-            )
+    for idx, rec in enumerate(now_records, start=1):
+        all_text += (
+            f"【即時紀錄{idx}】\n"
+            f"內容：{rec['note']}\n"
+            f"情緒指標：喜悅（joy）：{rec['joy']}，悲傷（sadness）：{rec['sadness']}，"
+            f"憤怒（anger）：{rec['anger']}，正向（positive）：{rec['positive']}，"
+            f"焦慮（anxiety）：{rec['anxiety']}，疲憊（exhaust）：{rec['exhaust']}\n\n"
+        )
 
-    # 加上 LLM prompt
-    all_text += "請根據今天所有日記與即時紀錄內容、情緒數值，產生一段全日總結（100-150字），並列出具體主題（例如：人際關係、壓力來源、學業等）。"
+    all_text += "請根據今天所有日記與即時紀錄內容、情緒數值，產生一段全日總結（100-150字），並列出具體主題。"
 
-    # 送到 LLM 取得摘要結果
     ai_result = analyze_content_with_ai(all_text)
-
-    # 回傳 JSON 給前端
     return jsonify({
         "summary": ai_result.get("summary", ""),
         "themes": ai_result.get("themes", []),
@@ -869,7 +938,6 @@ def analyze():
     if not diary:
         return jsonify({'error': '請輸入日記內容'}), 400
 
-    # 1. 產生日記向量，查詢語意最接近的精油（取前三個）
     try:
         qvec = embed_text(diary)
         results = col.query(query_embeddings=[qvec], n_results=3)
@@ -880,10 +948,8 @@ def analyze():
     except Exception as e:
         return jsonify({'error': f'精油向量查詢失敗：{e}'}), 500
 
-    # 2. 建立給 LLM 的精油候選清單
     candidates = '\n'.join([f"{idx+1}. {oil_docs[idx]}" for idx in range(len(oil_docs))])
 
-    # 3. 用 LLM 選最適合精油與理由
     messages = [
         {
             "role": "system",
@@ -915,7 +981,6 @@ def analyze():
     }
 
     try:
-        # 請求 LLM 給予精油推薦
         resp = requests.post(OLLAMA_CHAT_URL, json=payload, timeout=180)
         resp.raise_for_status()
         content = resp.json().get("message", {}).get("content", "").strip()
@@ -924,11 +989,9 @@ def analyze():
         oil_name = parsed.get("oil", "")
         reason = parsed.get("reason", "")
         print("AI raw output:", content)
-
     except Exception as e:
         return jsonify({'error': f'AI推薦失敗/格式錯誤：{e}', 'raw': content if 'content' in locals() else ''}), 500
 
-    # 4. 回傳推薦精油與描述
     oil_desc = ""
     for doc in oil_docs:
         if oil_name and doc.startswith(oil_name):
@@ -947,78 +1010,94 @@ def analyze():
         "diary": diary
     })
 
-
 @app.route('/recommend_today_oil', methods=['GET'])
 def recommend_today_oil():
     user_id = request.args.get('user_id')
     if not user_id:
         return jsonify({"error": "請帶上 user_id"}), 400
 
-    print("Step 1: Start get summary...")
     try:
-        # 1. 先取得當天情緒摘要
-        summary_resp = requests.get(
-            "http://127.0.0.1:5000/analyze_today_all",
-            params={'user_id': user_id},
-            timeout=120
-        )
-        summary_json = summary_resp.json()
+        summary_json = analyze_today_all().json
         summary_text = summary_json.get('summary', '')
-        print("Step 1: Got summary:", summary_text)
         if not summary_text:
             return jsonify({"error": "找不到今日摘要", "raw": summary_json}), 400
     except Exception as e:
-        print("Step 1 failed:", e)
-        return jsonify({"error": f"今日摘要API失敗: {e}"}), 500
+        return jsonify({"error": f"今日摘要失敗: {e}"}), 500
 
-    print("Step 2: Start analyze...")
     try:
-        # 2. 再用摘要去推薦精油
-        analyze_resp = requests.post(
-            "http://127.0.0.1:5000/analyze",
-            json={'diary': summary_text},
-            timeout=120
-        )
-        analyze_json = analyze_resp.json()
-        print("Step 2: Got analyze:", analyze_json)
+        qvec = embed_text(summary_text)
+        results = col.query(query_embeddings=[qvec], n_results=3)
+        oil_docs = results['documents'][0]
+        oil_ids = results['ids'][0]
+        if not oil_docs:
+            return jsonify({"error": "查無相關精油"}), 404
     except Exception as e:
-        print("Step 2 failed:", e)
-        return jsonify({"error": f"推薦精油API失敗: {e}"}), 500
+        return jsonify({"error": f"向量查詢失敗: {e}"}), 500
 
-    # 只取精油名稱
-    oil_name = analyze_json.get('oil', '').strip()
-    if not oil_name:
-        return jsonify({"error": "AI 沒有推薦精油名稱", "raw": analyze_json}), 400
+    candidates = '\n'.join([f"{idx+1}. {oil_docs[idx]}" for idx in range(len(oil_docs))])
+    messages = [
+        {"role": "system", "content": (
+            "你是一位芳療專家，只能從下列精油選出一款最適合的，格式如下："
+            "{\"oil\":\"精油名稱\",\"reason\":\"推薦理由（>20字）\"}。\n"
+            f"候選精油：\n{candidates}")},
+        {"role": "user", "content": f"日記內容：\n{summary_text}"}
+    ]
 
-    print("Step 3: 查詢油品 id...")
+    payload = {
+        'model': 'gemma3:12b',
+        'messages': messages,
+        'stream': False,
+        'options': {
+            'num_gpu': 1,
+            'main_gpu': 0,
+            'low_vram': False,
+            'num_ctx': 8192,
+            'keep_alive': -1
+        }
+    }
+
     try:
-        # 3. 查詢精油 id
-        sql = "SELECT id FROM oil WHERE name = %s"
-        cursor.execute(sql, (oil_name,))
+        resp = requests.post(OLLAMA_CHAT_URL, json=payload, timeout=180)
+        content = resp.json().get("message", {}).get("content", "").strip()
+        match = re.search(r'\{.*?\}', content, re.DOTALL)
+        parsed = json.loads(match.group(0)) if match else {}
+    except Exception as e:
+        return jsonify({"error": f"AI推薦失敗: {e}"}), 500
+
+    oil_name = parsed.get("oil", "").strip()
+    reason = parsed.get("reason", "")
+    oil_desc = next((doc for doc in oil_docs if oil_name and doc.startswith(oil_name)), "")
+    if not oil_desc:
+        oil_desc = "查無精油功效（模型可能回傳名單外精油）"
+    if not reason:
+        reason = "AI未正確給出推薦理由，請重新嘗試"
+
+    try:
+        conn = get_db_connection()
+        if conn is None:
+            return jsonify({"error": "資料庫連線失敗"}), 500
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT id FROM oil WHERE name = %s", (oil_name,))
         row = cursor.fetchone()
         if not row:
             return jsonify({"error": f"資料庫查無精油名稱: {oil_name}"}), 400
         oil_id = row['id']
-    except Exception as e:
-        print("Step 3 failed:", e)
-        return jsonify({"error": f"查詢油品失敗: {e}"}), 500
 
-    print(f"Step 4: 更新使用者 {user_id} 的 oil_id -> {oil_id}")
-    try:
-        # 4. 更新 user 的 oil_id
-        sql_update = "UPDATE users SET oil_id = %s WHERE id = %s"
-        cursor.execute(sql_update, (oil_id, user_id))
-        db.commit()
+        cursor.execute("UPDATE users SET oil_id = %s WHERE id = %s", (oil_id, user_id))
+        conn.commit()
     except Exception as e:
-        print("Step 4 failed:", e)
         return jsonify({"error": f"更新使用者 oil_id 失敗: {e}"}), 500
+    finally:
+        conn.close()
 
     return jsonify({
         "oil": oil_name,
         "oil_id": oil_id,
+        "reason": reason,
+        "oil_desc": oil_desc,
         "status": "success"
     })
 
 # ============ 啟動 Flask 伺服器 ============
 if __name__ == '__main__':
-    app.run(host='127.0.0.1', port=5000, debug=True, threaded=True)
+    app.run(host='0.0.0.0', port=5000, debug=True, threaded=True)

@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/api_client.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter/foundation.dart';
@@ -19,7 +18,6 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
   final ScrollController _scrollController = ScrollController();
   final List<Map<String, dynamic>> _messages = [];
   final ApiClient apiClient = ApiClient();
-  String? _userId;
   late final String greeting;
   Timer? _typingTimer;
   bool _isLoading = false;
@@ -29,81 +27,20 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
   @override
   void initState() {
     super.initState();
-    final now = DateTime.now();
-    final hasRecommendation = now.minute % 2 == 1;
     greeting =
-        hasRecommendation
-            ? widget.isEnglish
-                ? 'Hey~ I found a flavor just for you, wanna check it out? Or what do you want to chat about?'
-                : '嘿~我找了一個專屬於你的味道，你要不要看看？還是你想聊聊什麼？'
-            : widget.isEnglish
+        widget.isEnglish
             ? 'Hello~ I\'m Smaily, what do you want to chat about?'
             : '您好~我是Smaily，你想要聊聊什麼嗎？';
 
+    _currentConversation = 'default';
     _messages.add({
       'role': 'bot',
       'content': greeting,
       'isTyping': false,
-      'timestamp': now,
+      'timestamp': DateTime.now(),
     });
 
-    if (hasRecommendation) {
-      _messages.add({
-        'role': 'bot',
-        'content': _buildRecommendationList(),
-        'isRecommendation': true,
-        'isTyping': false,
-        'timestamp': now,
-      });
-    }
-
-    _fetchAndStoreUserId();
     _loadConversations();
-  }
-
-  String _buildRecommendationList() {
-    final recommendations = ['香草風味', '巧克力夢幻', '草莓甜心'];
-    final prefix = widget.isEnglish ? 'Recommended flavors:' : '推薦口味：';
-    return '$prefix\n${recommendations.map((item) => '- $item').join('\n')}';
-  }
-
-  Future<void> _fetchAndStoreUserId() async {
-    try {
-      final userId = await apiClient.getUserId();
-      if (userId != null) {
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString('user_id', userId);
-        setState(() {
-          _userId = userId;
-        });
-      } else {
-        setState(() {
-          _messages.add({
-            'role': 'bot',
-            'content':
-                widget.isEnglish
-                    ? 'Unable to retrieve user ID, please log in again.'
-                    : '無法取得用戶ID，請重新登入。',
-            'isTyping': false,
-            'timestamp': DateTime.now(),
-          });
-        });
-        _scrollToBottom();
-      }
-    } catch (e) {
-      setState(() {
-        _messages.add({
-          'role': 'bot',
-          'content':
-              widget.isEnglish
-                  ? 'Error: Unable to retrieve user ID, please try again later.'
-                  : '錯誤：無法取得用戶ID，請稍後再試。',
-          'isTyping': false,
-          'timestamp': DateTime.now(),
-        });
-      });
-      _scrollToBottom();
-    }
   }
 
   Future<void> _loadConversations() async {
@@ -111,7 +48,6 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
       final data = await apiClient.getConversations();
       setState(() {
         _conversations = List<String>.from(data['conversations'] ?? []);
-        _currentConversation = data['current'] ?? 'default';
       });
       await _loadChatHistory(_currentConversation);
     } catch (e) {
@@ -132,30 +68,25 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
 
   Future<void> _loadChatHistory(String conversation) async {
     try {
-      final history = await apiClient.getChatHistory();
+      final history = await apiClient.getChatHistory(conversation);
       setState(() {
         _messages.clear();
-        _messages.add({
-          'role': 'bot',
-          'content': greeting,
-          'isTyping': false,
-          'timestamp': DateTime.now(),
-        });
-        if (_messages.last['content'] != greeting) {
+        if (history.isEmpty && conversation == 'default') {
           _messages.add({
             'role': 'bot',
             'content': greeting,
             'isTyping': false,
             'timestamp': DateTime.now(),
           });
-        }
-        for (var msg in history) {
-          _messages.add({
-            'role': msg['role'] == 'user' ? 'user' : 'bot',
-            'content': msg['content'],
-            'isTyping': false,
-            'timestamp': DateTime.now(),
-          });
+        } else {
+          for (var msg in history) {
+            _messages.add({
+              'role': msg['role'] == 'user' ? 'user' : 'bot',
+              'content': msg['content'],
+              'isTyping': false,
+              'timestamp': DateTime.now(),
+            });
+          }
         }
       });
       _scrollToBottom();
@@ -164,12 +95,31 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
       if (errorText.contains('No chat history') ||
           errorText.contains('empty') ||
           errorText.contains('not found')) {
+        setState(() {
+          _messages.clear();
+          if (conversation == 'default') {
+            _messages.add({
+              'role': 'bot',
+              'content': greeting,
+              'isTyping': false,
+              'timestamp': DateTime.now(),
+            });
+          }
+        });
         return;
       }
-
-      if (kDebugMode) {
-        print('載入聊天記錄失敗：$e');
-      }
+      setState(() {
+        _messages.add({
+          'role': 'bot',
+          'content':
+              widget.isEnglish
+                  ? 'Error: Failed to load chat history.'
+                  : '錯誤：無法載入聊天記錄。',
+          'isTyping': false,
+          'timestamp': DateTime.now(),
+        });
+      });
+      _scrollToBottom();
     }
   }
 
@@ -200,20 +150,6 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
     final text = _controller.text.trim();
     if (text.isEmpty || _isLoading) return;
 
-    // 如果是 default，根據用戶的第一句話產生對話名稱
-    if (_currentConversation == 'default') {
-      final trimmed = text.trim();
-      final preview = trimmed.length > 8 ? trimmed.substring(0, 8) : trimmed;
-      final now = DateTime.now();
-      final time =
-          '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
-      final newConversationName =
-          widget.isEnglish
-              ? 'Chat: "$preview..." $time'
-              : '對話：「$preview...」$time';
-      await _switchConversation(newConversationName);
-    }
-
     setState(() {
       _messages.add({
         'role': 'user',
@@ -233,82 +169,69 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
     _scrollToBottom();
 
     try {
-      final prefs = await SharedPreferences.getInstance();
-      String? userId = _userId ?? prefs.getString('user_id');
-      if (userId == null || userId == '0') {
-        userId = await apiClient.getUserId();
-        if (userId == null) {
-          setState(() {
-            _messages.removeWhere((msg) => msg['isLoading'] == true);
-            _messages.add({
-              'role': 'bot',
-              'content':
-                  widget.isEnglish
-                      ? 'Unable to retrieve user ID, please log in again.'
-                      : '無法取得用戶ID，請重新登入。',
-              'isTyping': false,
-              'timestamp': DateTime.now(),
-            });
-          });
-          _scrollToBottom();
-          return;
+      StringBuffer responseBuffer = StringBuffer();
+      bool hasReceivedName = false;
+      await for (var chunk in apiClient.chat(text)) {
+        if (kDebugMode) {
+          print('[收到 chunk]: $chunk');
         }
-        await prefs.setString('user_id', userId);
-        setState(() {
-          _userId = userId;
-        });
+
+        if (chunk.startsWith('CONVERSATION_NAME:')) {
+          final newConversationName = chunk.replaceFirst(
+            'CONVERSATION_NAME:',
+            '',
+          );
+
+          if (mounted && newConversationName != _currentConversation) {
+            setState(() {
+              _currentConversation = newConversationName;
+              if (!_conversations.contains(_currentConversation)) {
+                _conversations.add(_currentConversation);
+              }
+            });
+          }
+
+          hasReceivedName = true;
+        } else if (chunk.isNotEmpty) {
+          responseBuffer.write(chunk);
+          if (mounted) {
+            setState(() {
+              if (_messages.isNotEmpty) {
+                _messages.last['content'] = responseBuffer.toString();
+                _messages.last['isTyping'] = true;
+              }
+            });
+            _scrollToBottom();
+          }
+          await Future.delayed(const Duration(milliseconds: 50));
+        }
       }
 
-      final reply = await apiClient.sendChatMessage(text, int.parse(userId));
-      setState(() {
-        _messages.removeWhere((msg) => msg['isLoading'] == true);
-        _messages.add({
-          'role': 'bot',
-          'content': '',
-          'isTyping': true,
-          'timestamp': DateTime.now(),
-        });
-      });
-      _startTypingEffect(reply);
-      setState(() {
-        _isLoading = false;
-      });
-
-      await _loadConversations();
-    } catch (e) {
-      setState(() {
-        _messages.removeWhere((msg) => msg['isLoading'] == true);
-        _messages.add({
-          'role': 'bot',
-          'content':
-              widget.isEnglish
-                  ? '😢 An error occurred, please try again later.'
-                  : '😢 發生錯誤，請稍後再試。',
-          'isTyping': false,
-          'timestamp': DateTime.now(),
-        });
-      });
-      _scrollToBottom();
-    }
-  }
-
-  void _startTypingEffect(String text) {
-    int index = 0;
-    _typingTimer?.cancel();
-    _typingTimer = Timer.periodic(const Duration(milliseconds: 50), (timer) {
-      if (index < text.length) {
+      if (mounted && hasReceivedName) {
         setState(() {
-          _messages.last['content'] = text.substring(0, index + 1);
-        });
-        index++;
-        _scrollToBottom();
-      } else {
-        setState(() {
+          _messages.last['isLoading'] = false;
           _messages.last['isTyping'] = false;
+          _isLoading = false;
         });
-        timer.cancel();
       }
-    });
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _messages.removeWhere((msg) => msg['isLoading'] == true);
+          _messages.add({
+            'role': 'bot',
+            'content':
+                widget.isEnglish
+                    ? '😢 An error occurred, please try again later.'
+                    : '😢 發生錯誤，請稍後再試。',
+            'isTyping': false,
+            'timestamp': DateTime.now(),
+          });
+          _isLoading = false;
+        });
+        _scrollToBottom();
+      }
+    }
   }
 
   void _scrollToBottom() {
@@ -333,7 +256,6 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
     final isUser = message['role'] == 'user';
     final isLoading = message['isLoading'] == true;
     final isTyping = message['isTyping'] == true;
-    final isRecommendation = message['isRecommendation'] == true;
     final alignment = isUser ? Alignment.centerRight : Alignment.centerLeft;
     final bgColor = isUser ? Colors.blue[100] : Colors.grey[200];
     final radius = BorderRadius.only(
@@ -401,45 +323,10 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (isRecommendation)
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children:
-                    (message['content'] as String)
-                        .split('\n')
-                        .asMap()
-                        .entries
-                        .map((entry) {
-                          final index = entry.key;
-                          final line = entry.value;
-                          return Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 2),
-                            child:
-                                index == 0
-                                    ? Text(
-                                      line,
-                                      style: const TextStyle(
-                                        color: Colors.black87,
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    )
-                                    : Text(
-                                      line,
-                                      style: const TextStyle(
-                                        color: Colors.black87,
-                                        fontSize: 16,
-                                      ),
-                                    ),
-                          );
-                        })
-                        .toList(),
-              )
-            else
-              Text(
-                message['content'] ?? '',
-                style: const TextStyle(color: Colors.black87, fontSize: 16),
-              ),
+            Text(
+              message['content'] ?? '',
+              style: const TextStyle(color: Colors.black87, fontSize: 16),
+            ),
             const SizedBox(height: 4),
             Text(
               formattedTime,
@@ -465,69 +352,21 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
 
   @override
   Widget build(BuildContext context) {
+    void showSnackBarSafe(String message) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message), duration: const Duration(seconds: 2)),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.isEnglish ? 'Smaily AI' : '情緒對話 AI'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: () async {
-              try {
-                await apiClient.resetConversation();
-                await _loadChatHistory(_currentConversation);
-              } catch (e) {
-                setState(() {
-                  _messages.add({
-                    'role': 'bot',
-                    'content':
-                        widget.isEnglish
-                            ? 'Error: Failed to reset conversation.'
-                            : '錯誤：無法重設對話。',
-                    'isTyping': false,
-                    'timestamp': DateTime.now(),
-                  });
-                });
-                _scrollToBottom();
-              }
-            },
-            tooltip: widget.isEnglish ? 'Reset Conversation' : '重設對話',
-          ),
-          IconButton(
-            icon: const Icon(Icons.save),
-            onPressed: () async {
-              try {
-                final summary = await apiClient.finalizeConversation();
-                setState(() {
-                  _messages.add({
-                    'role': 'bot',
-                    'content':
-                        widget.isEnglish
-                            ? 'Conversation saved. Summary: $summary'
-                            : '對話已儲存。摘要：$summary',
-                    'isTyping': false,
-                    'timestamp': DateTime.now(),
-                  });
-                });
-                _scrollToBottom();
-                await _loadConversations();
-              } catch (e) {
-                setState(() {
-                  _messages.add({
-                    'role': 'bot',
-                    'content':
-                        widget.isEnglish
-                            ? 'Error: Failed to save conversation.'
-                            : '錯誤：無法儲存對話。',
-                    'isTyping': false,
-                    'timestamp': DateTime.now(),
-                  });
-                });
-                _scrollToBottom();
-              }
-            },
-            tooltip: widget.isEnglish ? 'Save Conversation' : '儲存對話',
-          ),
-        ],
+        title: Text(
+          widget.isEnglish
+              ? 'Smaily AI - $_currentConversation'
+              : '情緒對話 AI - $_currentConversation',
+        ),
+        actions: [],
       ),
       drawer: Drawer(
         child: ListView(
@@ -554,10 +393,34 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
               title: Text(widget.isEnglish ? 'New Conversation' : '新建對話'),
               leading: const Icon(Icons.add),
               onTap: () {
-                final newConversation =
-                    'untitled_${DateTime.now().millisecondsSinceEpoch}';
-                _switchConversation(newConversation);
+                setState(() {
+                  _currentConversation = 'default';
+                  _messages.clear();
+                  _messages.add({
+                    'role': 'bot',
+                    'content': greeting,
+                    'isTyping': false,
+                    'timestamp': DateTime.now(),
+                  });
+                });
                 Navigator.pop(context);
+              },
+            ),
+            ListTile(
+              title: Text(widget.isEnglish ? 'Delete Conversation' : '刪除對話'),
+              leading: const Icon(Icons.delete),
+              onTap: () {
+                if (_conversations.isNotEmpty &&
+                    _currentConversation != 'default') {
+                  _deleteConversation(_currentConversation);
+                  Navigator.pop(context);
+                } else {
+                  showSnackBarSafe(
+                    widget.isEnglish
+                        ? 'Cannot delete default conversation.'
+                        : '無法刪除預設對話。',
+                  );
+                }
               },
             ),
           ],
@@ -582,7 +445,7 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
                 ),
                 const Divider(height: 1),
                 Container(
-                  color: Colors.white.withValues(alpha: 0.8),
+                  color: Colors.white.withAlpha(204),
                   padding: const EdgeInsets.symmetric(
                     horizontal: 12,
                     vertical: 8,
@@ -622,5 +485,46 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _deleteConversation(String conversation) async {
+    try {
+      await apiClient.deleteConversation(conversation);
+      setState(() {
+        _conversations.remove(conversation);
+        if (_currentConversation == conversation) {
+          _currentConversation = 'default';
+        }
+        _messages.clear();
+        _messages.add({
+          'role': 'bot',
+          'content': greeting,
+          'isTyping': false,
+          'timestamp': DateTime.now(),
+        });
+      });
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            widget.isEnglish
+                ? 'Conversation deleted successfully.'
+                : '對話已成功刪除。',
+          ),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            widget.isEnglish
+                ? 'Error: Failed to delete conversation.'
+                : '錯誤：無法刪除對話。',
+          ),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
   }
 }

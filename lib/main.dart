@@ -87,6 +87,7 @@ class _Smaily2AppState extends State<Smaily2App> {
       theme:
           _isDarkTheme
               ? ThemeData(
+                fontFamily: 'PixelFont',
                 brightness: Brightness.dark,
                 primarySwatch: Colors.blue,
                 scaffoldBackgroundColor: Colors.grey[900],
@@ -95,6 +96,7 @@ class _Smaily2AppState extends State<Smaily2App> {
                 ),
               )
               : ThemeData(
+                fontFamily: 'PixelFont',
                 brightness: Brightness.light,
                 primarySwatch: Colors.blue,
                 scaffoldBackgroundColor: Colors.white,

@@ -51,3 +51,27 @@ flutter:
     - assets/scenario_music/relaxing-smoothed-brown-noise.mp3
     - assets/scenario_music/soft-brown-noise-.mp3
     - assets/scenario_music/soothing-deep-noise-.mp3
+    - assets/oils/1.jpg
+    - assets/oils/2.jpg
+    - assets/oils/3.jpg
+    - assets/oils/4.jpg
+    - assets/oils/5.jpg
+    - assets/oils/6.jpg
+    - assets/oils/7.jpg
+    - assets/oils/8.jpg
+    - assets/oils/9.jpg
+    - assets/oils/10.jpg
+    - assets/oils/11.jpg
+    - assets/oils/12.jpg
+    - assets/oils/13.jpg
+    - assets/oils/14.jpg
+    - assets/oils/15.jpg
+    - assets/oils/16.jpg
+    - assets/oils/17.jpg
+    - assets/oils/18.jpg
+    - assets/oils/19.jpg
+    - assets/oils/20.jpg
+  fonts:
+    - family: PixelFont
+      fonts:
+        - asset: assets/fonts/pixel.ttf 

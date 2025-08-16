@@ -669,7 +669,7 @@ def get_history():
 
 
 # ============ 發送訊息/串流回覆 ============
-@app.route('/chat', methods=['POST'])
+@app.route('/chat', methods=['POST'], endpoint='chat_zh')
 def chat():
     user_id = request.json.get('user_id')
     user_message = request.json.get('message', '').strip()
@@ -745,7 +745,7 @@ def chat():
     else:
         return Response(generate(), content_type='text/plain')
 
-@app.route('/chatEN', methods=['POST'])#英文聊天
+@app.route('/chatEN', methods=['POST'], endpoint='chat_en')#英文聊天
 def chat():
     user_id = request.json.get('user_id')
     user_message = request.json.get('message', '').strip()

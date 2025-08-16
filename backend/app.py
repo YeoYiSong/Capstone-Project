@@ -745,6 +745,80 @@ def chat():
     else:
         return Response(generate(), content_type='text/plain')
 
+@app.route('/chat', methods=['POST'])
+def chat():
+    user_id = request.json.get('user_id')
+    user_message = request.json.get('message', '').strip()
+    original_conversation = request.json.get('conversation')  # 接收前端送來的名稱
+
+    # 如果沒有傳 conversation，就給個未命名的
+    if not original_conversation:
+        original_conversation = 'untitled_' + str(uuid.uuid4())[:8]
+
+    # --- Step 1: 從 session 中查詢 conversation 是否已經被改名過 ---
+    conversation = session.get(f'conv_name_map_{user_id}_{original_conversation}', original_conversation)
+
+    # --- Step 2: 檢查是否為第一次 AI 回應 ---
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT COUNT(*) FROM robot_chat_history WHERE user_id = %s AND conversation = %s AND role = 'assistant'",
+        (user_id, conversation)
+    )
+    has_ai_response = cursor.fetchone()[0] > 0
+    cursor.close()
+    conn.close()
+
+    should_rename = conversation.startswith("untitled_") and not has_ai_response
+    send_conv_name = None
+
+    if should_rename:
+        new_name = ai_generate_title(user_message)
+        update_conversation_name(user_id, conversation, new_name)
+
+        # 將原名與新名對應記起來（之後前端再送來 untitled_xxx 時能自動轉成新名）
+        session[f'conv_name_map_{user_id}_{conversation}'] = new_name
+
+        send_conv_name = new_name
+        conversation = new_name  # ⚠️ 更新為新名儲存訊息
+
+    # --- 儲存使用者訊息 ---
+    save_message_to_db(user_id, conversation, 'user', user_message)
+
+    # --- 撈取歷史訊息 ---
+    history = get_messages(user_id, conversation)
+    messages = [{'role': 'system', 'content': 'You are a kind and patient friend. Please chat with me in Traditional Chinese. It doesn’t need to be too formal, just like how friends normally talk—warm, understanding, and making me feel truly understood.'}] + history + [
+                   {'role': 'user', 'content': user_message}]
+
+    payload = {'model': 'gemma3:12b', 'messages': messages, 'stream': True}
+    full_response = {'value': ''}
+
+    @stream_with_context
+    def generate():
+        try:
+            with requests.post(OLLAMA_API_URL, json=payload, stream=True, timeout=180) as r:
+                for line in r.iter_lines():
+                    if not line:
+                        continue
+                    try:
+                        data = json.loads(line.decode('utf-8'))
+                        chunk = data.get('message', {}).get('content', '')
+                    except:
+                        chunk = '[解析錯誤]'
+                    full_response['value'] += chunk
+                    yield chunk
+        except Exception as e:
+            yield f'[錯誤]: {e}'
+
+        if full_response['value'].strip():
+            save_message_to_db(user_id, conversation, 'assistant', full_response['value'])
+
+    if send_conv_name:
+        def name_stream():
+            yield f"CONVERSATION_NAME:{send_conv_name}\n"
+        return Response(stream_with_context(chain(name_stream(), generate())), content_type='text/plain')
+    else:
+        return Response(generate(), content_type='text/plain')
 
 # ============ 產生並儲存摘要 ============
 @app.route('/finalize', methods=['POST'])

@@ -745,7 +745,7 @@ def chat():
     else:
         return Response(generate(), content_type='text/plain')
 
-@app.route('/chat', methods=['POST'])
+@app.route('/chatEN', methods=['POST'])#英文聊天
 def chat():
     user_id = request.json.get('user_id')
     user_message = request.json.get('message', '').strip()
@@ -787,7 +787,7 @@ def chat():
 
     # --- 撈取歷史訊息 ---
     history = get_messages(user_id, conversation)
-    messages = [{'role': 'system', 'content': 'You are a kind and patient friend. Please chat with me in Traditional Chinese. It doesn’t need to be too formal, just like how friends normally talk—warm, understanding, and making me feel truly understood.'}] + history + [
+    messages = [{'role': 'system', 'content': 'You are a kind and patient friend. It doesn’t need to be too formal, just like how friends normally talk—warm, understanding, and making me feel truly understood.'}] + history + [
                    {'role': 'user', 'content': user_message}]
 
     payload = {'model': 'gemma3:12b', 'messages': messages, 'stream': True}

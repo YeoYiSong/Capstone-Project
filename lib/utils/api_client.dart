@@ -452,6 +452,48 @@ class ApiClient {
     }
   }
 
+  // 在 ApiClient 裡加上英文聊天串流（和 chat 一樣，但打 /chatEN）
+  Stream<String> chatEN(String message, String conversation) async* {
+    final userId = await getUserId();
+    if (userId == null) {
+      developer.log('No user logged in for chatEN', name: 'ApiClient');
+      throw Exception('無法傳送英文聊天訊息：用戶未登入');
+    }
+
+    final request =
+        http.Request('POST', Uri.parse('${getBaseUrl()}/chatEN'))
+          ..headers['Content-Type'] = 'application/json'
+          ..body = jsonEncode({
+            'message': message,
+            'user_id': userId,
+            'conversation': conversation,
+          });
+
+    try {
+      final streamedResponse = await request.send();
+      if (streamedResponse.statusCode == 200) {
+        final stream = streamedResponse.stream.transform(utf8.decoder);
+        await for (final chunk in stream) {
+          if (kDebugMode) {
+            print('[chunk EN] $chunk');
+          }
+          yield chunk;
+        }
+        developer.log('ChatEN streamed successfully', name: 'ApiClient');
+      } else {
+        final errorBody = await streamedResponse.stream.bytesToString();
+        developer.log(
+          'chatEN failed: $errorBody (Status: ${streamedResponse.statusCode})',
+          name: 'ApiClient',
+        );
+        throw Exception('傳送英文聊天訊息失敗：$errorBody');
+      }
+    } catch (e) {
+      developer.log('Error in chatEN stream: $e', name: 'ApiClient', error: e);
+      throw Exception('傳送英文聊天訊息失敗：$e');
+    }
+  }
+
   Future<void> switchConversation(String conversationName) async {
     final userId = await getUserId();
     if (userId == null) throw Exception('用戶未登入');

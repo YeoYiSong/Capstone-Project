@@ -184,7 +184,13 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
     try {
       StringBuffer responseBuffer = StringBuffer();
 
-      await for (var chunk in apiClient.chat(text, _currentConversation)) {
+      // 👇 依照 isEnglish 選擇 chatEN 或 chat
+      final stream =
+          widget.isEnglish
+              ? apiClient.chatEN(text, _currentConversation)
+              : apiClient.chat(text, _currentConversation);
+
+      await for (final chunk in stream) {
         if (kDebugMode) {
           print('[收到 chunk]: $chunk');
         }

@@ -749,7 +749,7 @@ def chat():
 def chat():
     user_id = request.json.get('user_id')
     user_message = request.json.get('message', '').strip()
-    original_conversation = request.json.get('conversation')  # 接收前端送來的名稱
+    original_conversation = request.json.get('conversation')  
 
     # 如果沒有傳 conversation，就給個未命名的
     if not original_conversation:
@@ -773,7 +773,7 @@ def chat():
     send_conv_name = None
 
     if should_rename:
-        new_name = ai_generate_title(user_message)
+        new_name = ai_generate_title_en(user_message)
         update_conversation_name(user_id, conversation, new_name)
 
         # 將原名與新名對應記起來（之後前端再送來 untitled_xxx 時能自動轉成新名）
@@ -819,6 +819,39 @@ def chat():
         return Response(stream_with_context(chain(name_stream(), generate())), content_type='text/plain')
     else:
         return Response(generate(), content_type='text/plain')
+    
+def ai_generate_title_en(first_message: str) -> str:
+    payload = {
+        "model": "gemma3:12b",
+        "messages": [
+            {
+                "role": "system",
+                "content": (
+                    "You are a conversation title generator.\n"
+                    "Based on the following message, reply with ONLY a short clear title in **English**.\n"
+                    "Rules:\n"
+                    "- Must be between 8 and 16 characters.\n"
+                    "- Do not add punctuation, numbers, or symbols.\n"
+                    "- Do not ask questions or give explanations.\n"
+                    "- Just output the plain title text.\n"
+                    "Examples: Work Stress Chat, Weekend Reflections, Family Dinner Talk"
+                )
+            },
+            {
+                "role": "user",
+                "content": first_message
+            }
+        ],
+        "stream": False
+    }
+    try:
+        res = requests.post(OLLAMA_API_URL, json=payload, timeout=60)
+        data = res.json()
+        title = data.get("message", {}).get("content", "").strip().replace("\n", "")
+        return title[:16] if title else "Untitled Chat"
+    except Exception:
+        return "Untitled Chat"
+
 
 # ============ 產生並儲存摘要 ============
 @app.route('/finalize', methods=['POST'])

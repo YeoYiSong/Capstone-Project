@@ -28,5 +28,5 @@ String getBaseUrl() {
 /// ✅ 設定你的本機 IP（⚠️ 改成你自己的）
 /// 用來讓 Web 和實體手機可以連線到電腦上的 Flask
 String _getLocalIp() {
-  return '192.168.137.4'; // ← 這就是你剛剛給的 IP
+  return '192.168.137.27'; // ← 這就是你剛剛給的 IP
 }

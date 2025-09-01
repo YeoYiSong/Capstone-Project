@@ -1356,6 +1356,69 @@ def recommend_today_oil():
     })
 
 
+# 在日記模組後面新增以下程式碼
+
+@app.route('/search_diary_entries', methods=['GET'])
+def search_diary_entries():
+    user_id = session.get('user_id') or request.args.get('user_id')
+    query = request.args.get('query', '').strip()  # 關鍵字搜尋
+
+    if not user_id:
+        return jsonify({'error': 'Missing user_id'}), 400
+    if not query:
+        return jsonify({'error': 'Missing query'}), 400
+
+    connection = get_db_connection()
+    if connection is None:
+        return jsonify({'error': 'Failed to connect to database'}), 500
+
+    try:
+        cursor = connection.cursor(dictionary=True)
+        
+        # diaries 表查詢
+        query_diaries = """
+        SELECT id, user_id, content AS mood_text, joy, sadness, anger, positive, anxiety, exhaust, 
+               color_mix AS mixed_color, create_at, is_english, details
+        FROM diaries 
+        WHERE user_id = %s AND (content LIKE %s OR details LIKE %s)
+        """
+        cursor.execute(query_diaries, (user_id, f"%{query}%", f"%{query}%"))
+        day_entries = cursor.fetchall()
+
+        # now 表查詢
+        query_now = """
+        SELECT id, user_id, note AS mood_text, joy, sadness, anger, positive, anxiety, exhaust, 
+               NULL AS mixed_color, create_at, is_english, details
+        FROM now 
+        WHERE user_id = %s AND (note LIKE %s OR details LIKE %s)
+        """
+        cursor.execute(query_now, (user_id, f"%{query}%", f"%{query}%"))
+        moment_entries = cursor.fetchall()
+
+        entries = day_entries + moment_entries
+        for entry in entries:
+            entry['entry_type'] = 'Day' if entry['mixed_color'] is not None else 'Moment'
+            entry['entry_date'] = entry['create_at'].date().isoformat()
+            entry['entry_time'] = entry['create_at'].strftime('%H:%M:%S')
+            entry['emotions'] = [
+                {'emotion': '快樂' if not entry['is_english'] else 'joy', 'intensity': float(entry['joy'])},
+                {'emotion': '悲傷' if not entry['is_english'] else 'sadness', 'intensity': float(entry['sadness'])},
+                {'emotion': '憤怒' if not entry['is_english'] else 'anger', 'intensity': float(entry['anger'])},
+                {'emotion': '積極' if not entry['is_english'] else 'positive', 'intensity': float(entry['positive'])},
+                {'emotion': '焦慮' if not entry['is_english'] else 'anxiety', 'intensity': float(entry['anxiety'])},
+                {'emotion': '疲憊' if not entry['is_english'] else 'exhaust', 'intensity': float(entry['exhaust'])}
+            ]
+            for field in ['joy', 'sadness', 'anger', 'positive', 'anxiety', 'exhaust']:
+                del entry[field]
+
+        return jsonify(entries), 200
+    except Error as e:
+        return jsonify({'error': f'Failed to search diary entries: {e}'}), 500
+    finally:
+        cursor.close()
+        connection.close()
+
+
 # ============ 啟動 Flask 伺服器 ============
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True, threaded=True)

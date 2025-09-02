@@ -625,6 +625,52 @@ class ApiClient {
     }
   }
 
+  /// 搜尋日記與瞬間 (/search_diary_entries)
+  Future<List<Map<String, dynamic>>> searchDiaryEntries({
+    required String query,
+    String? userId,
+  }) async {
+    if (query.trim().isEmpty) {
+      throw ArgumentError('query 不可為空字串');
+    }
+
+    // 優先使用傳入的 userId，沒有的話就呼叫 getUserId()
+    String? finalUserId = userId;
+    if (finalUserId == null || finalUserId.isEmpty) {
+      finalUserId = await getUserId();
+    }
+
+    final baseUrl = getBaseUrl();
+    final uri = Uri.parse('$baseUrl/search_diary_entries').replace(
+      queryParameters: {
+        'query': query.trim(),
+        if (finalUserId != null && finalUserId.isNotEmpty)
+          'user_id': finalUserId,
+      },
+    );
+
+    try {
+      final resp = await http.get(
+        uri,
+        headers: {'Content-Type': 'application/json'},
+      );
+      if (resp.statusCode == 200) {
+        final data = jsonDecode(resp.body);
+        if (data is List) {
+          return data
+              .map<Map<String, dynamic>>((e) => Map<String, dynamic>.from(e))
+              .toList();
+        } else {
+          throw Exception('回傳格式錯誤: $data');
+        }
+      } else {
+        throw Exception('搜尋失敗 (HTTP ${resp.statusCode}): ${resp.body}');
+      }
+    } catch (e) {
+      throw Exception('searchDiaryEntries 失敗: $e');
+    }
+  }
+
   Future<void> renameConversation(String oldName, String newName) async {
     final userId = await getUserId();
     if (userId == null) throw Exception('用戶未登入');

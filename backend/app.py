@@ -1355,13 +1355,10 @@ def recommend_today_oil():
         "status": "success"
     })
 
-
-# 在日記模組後面新增以下程式碼
-
 @app.route('/search_diary_entries', methods=['GET'])
 def search_diary_entries():
     user_id = session.get('user_id') or request.args.get('user_id')
-    query = request.args.get('query', '').strip()  # 關鍵字搜尋
+    query = request.args.get('query', '').strip()
 
     if not user_id:
         return jsonify({'error': 'Missing user_id'}), 400
@@ -1372,52 +1369,99 @@ def search_diary_entries():
     if connection is None:
         return jsonify({'error': 'Failed to connect to database'}), 500
 
+    cursor = None
     try:
         cursor = connection.cursor(dictionary=True)
-        
-        # diaries 表查詢
-        query_diaries = """
-        SELECT id, user_id, content AS mood_text, joy, sadness, anger, positive, anxiety, exhaust, 
-               color_mix AS mixed_color, create_at, is_english, details
-        FROM diaries 
-        WHERE user_id = %s AND (content LIKE %s OR details LIKE %s)
+        wildcard = f"%{query}%"
+
+        # 一次把兩個表合併查詢，並在 SQL 層排序
+        sql = """
+        SELECT *
+        FROM (
+            SELECT
+                d.id,
+                d.user_id,
+                d.content AS mood_text,
+                COALESCE(d.joy, 0)      AS joy,
+                COALESCE(d.sadness, 0)  AS sadness,
+                COALESCE(d.anger, 0)    AS anger,
+                COALESCE(d.positive, 0) AS positive,
+                COALESCE(d.anxiety, 0)  AS anxiety,
+                COALESCE(d.exhaust, 0)  AS exhaust,
+                d.color_mix             AS mixed_color,
+                d.create_at,
+                d.is_english,
+                d.details,
+                'Day'                   AS entry_type
+            FROM diaries d
+            WHERE d.user_id = %s AND (d.content LIKE %s OR d.details LIKE %s)
+
+            UNION ALL
+
+            SELECT
+                n.id,
+                n.user_id,
+                n.note                 AS mood_text,
+                COALESCE(n.joy, 0)     AS joy,
+                COALESCE(n.sadness, 0) AS sadness,
+                COALESCE(n.anger, 0)   AS anger,
+                COALESCE(n.positive, 0)AS positive,
+                COALESCE(n.anxiety, 0) AS anxiety,
+                COALESCE(n.exhaust, 0) AS exhaust,
+                NULL                   AS mixed_color,
+                n.create_at,
+                n.is_english,
+                n.details,
+                'Moment'               AS entry_type
+            FROM now n
+            WHERE n.user_id = %s AND (n.note LIKE %s OR n.details LIKE %s)
+        ) AS entries
+        ORDER BY create_at DESC
         """
-        cursor.execute(query_diaries, (user_id, f"%{query}%", f"%{query}%"))
-        day_entries = cursor.fetchall()
 
-        # now 表查詢
-        query_now = """
-        SELECT id, user_id, note AS mood_text, joy, sadness, anger, positive, anxiety, exhaust, 
-               NULL AS mixed_color, create_at, is_english, details
-        FROM now 
-        WHERE user_id = %s AND (note LIKE %s OR details LIKE %s)
-        """
-        cursor.execute(query_now, (user_id, f"%{query}%", f"%{query}%"))
-        moment_entries = cursor.fetchall()
+        params = (user_id, wildcard, wildcard, user_id, wildcard, wildcard)
+        cursor.execute(sql, params)
+        rows = cursor.fetchall()
 
-        entries = day_entries + moment_entries
-        for entry in entries:
-            entry['entry_type'] = 'Day' if entry['mixed_color'] is not None else 'Moment'
-            entry['entry_date'] = entry['create_at'].date().isoformat()
-            entry['entry_time'] = entry['create_at'].strftime('%H:%M:%S')
-            entry['emotions'] = [
-                {'emotion': '快樂' if not entry['is_english'] else 'joy', 'intensity': float(entry['joy'])},
-                {'emotion': '悲傷' if not entry['is_english'] else 'sadness', 'intensity': float(entry['sadness'])},
-                {'emotion': '憤怒' if not entry['is_english'] else 'anger', 'intensity': float(entry['anger'])},
-                {'emotion': '積極' if not entry['is_english'] else 'positive', 'intensity': float(entry['positive'])},
-                {'emotion': '焦慮' if not entry['is_english'] else 'anxiety', 'intensity': float(entry['anxiety'])},
-                {'emotion': '疲憊' if not entry['is_english'] else 'exhaust', 'intensity': float(entry['exhaust'])}
-            ]
-            for field in ['joy', 'sadness', 'anger', 'positive', 'anxiety', 'exhaust']:
-                del entry[field]
+        # 組裝回傳格式
+        results = []
+        for e in rows:
+            is_eng = bool(e.get('is_english'))
+            results.append({
+                'id': e['id'],
+                'user_id': e['user_id'],
+                'mood_text': e['mood_text'],
+                'mixed_color': e['mixed_color'],     # Day 有值、Moment 為 None
+                'create_at': e['create_at'],         # 原始時間物件（若前端要字串，下方也有 entry_date/time）
+                'is_english': e['is_english'],
+                'details': e.get('details'),
+                'entry_type': e['entry_type'],
+                'entry_date': e['create_at'].date().isoformat() if e['create_at'] else None,
+                'entry_time': e['create_at'].strftime('%H:%M:%S') if e['create_at'] else None,
+                'emotions': [
+                    {'emotion': ('快樂' if not is_eng else 'joy'),      'intensity': float(e['joy'])},
+                    {'emotion': ('悲傷' if not is_eng else 'sadness'),   'intensity': float(e['sadness'])},
+                    {'emotion': ('憤怒' if not is_eng else 'anger'),     'intensity': float(e['anger'])},
+                    {'emotion': ('積極' if not is_eng else 'positive'),  'intensity': float(e['positive'])},
+                    {'emotion': ('焦慮' if not is_eng else 'anxiety'),   'intensity': float(e['anxiety'])},
+                    {'emotion': ('疲憊' if not is_eng else 'exhaust'),   'intensity': float(e['exhaust'])},
+                ]
+            })
 
-        return jsonify(entries), 200
+        return jsonify(results), 200
+
     except Error as e:
         return jsonify({'error': f'Failed to search diary entries: {e}'}), 500
     finally:
-        cursor.close()
-        connection.close()
-
+        try:
+            if cursor is not None:
+                cursor.close()
+        except Exception:
+            pass
+        try:
+            connection.close()
+        except Exception:
+            pass
 
 # ============ 啟動 Flask 伺服器 ============
 if __name__ == '__main__':

@@ -30,12 +30,23 @@ class DiaryReviewScreenState extends State<DiaryReviewScreen> {
   List<BreathRecord> _breathRecords = [];
   final ApiClient _apiClient = ApiClient();
 
+  // ---（新增）搜尋用狀態---
+  final TextEditingController _searchController = TextEditingController();
+  bool _isSearching = false;
+  List<Map<String, dynamic>> _searchResults = [];
+
   @override
   void initState() {
     super.initState();
     _loadDiaryEntries(_selectedDay);
     _loadAllDayColors();
     _loadBreathRecords(_selectedDay);
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose(); //（新增）回收搜尋輸入框
+    super.dispose();
   }
 
   Future<void> _loadDiaryEntries(DateTime date) async {
@@ -133,6 +144,229 @@ class DiaryReviewScreenState extends State<DiaryReviewScreen> {
     );
   }
 
+  // =====================（新增）搜尋流程 =====================
+
+  Future<void> _performSearch() async {
+    final q = _searchController.text.trim();
+    if (q.isEmpty) return;
+    setState(() => _isSearching = true);
+    try {
+      final results = await _apiClient.searchDiaryEntries(query: q);
+      setState(() => _searchResults = results);
+    } catch (e) {
+      if (kDebugMode) print('Search failed: $e');
+      setState(() => _searchResults = []);
+    } finally {
+      setState(() => _isSearching = false);
+    }
+  }
+
+  Future<void> _onTapSearchResult(Map<String, dynamic> e) async {
+    // 先把日曆跳到該日期、載入那天資料
+    try {
+      final dateStr = (e['entry_date'] ?? '') as String;
+      final timeStr = (e['entry_time'] ?? '00:00:00') as String;
+      final dt = DateTime.parse('${dateStr}T$timeStr');
+
+      setState(() {
+        _selectedDay = dt;
+        _focusedDay = dt;
+      });
+      await _loadDiaryEntries(dt);
+      await _loadBreathRecords(dt);
+    } catch (_) {
+      // 若解析失敗仍可開詳情頁
+    }
+
+    // 依 entry_type 開對應頁
+    final String type = (e['entry_type'] ?? '') as String;
+    final bool isEnglish = (e['is_english'] ?? widget.isEnglish) == true;
+
+    final List<dynamic> emos = (e['emotions'] ?? []) as List<dynamic>;
+    final List<Map<String, dynamic>> emotions =
+        emos
+            .map<Map<String, dynamic>>(
+              (x) => {
+                'emotion': x['emotion'],
+                'intensity':
+                    (x['intensity'] is num)
+                        ? (x['intensity'] as num).toDouble()
+                        : double.tryParse('${x['intensity']}') ?? 0.0,
+              },
+            )
+            .toList();
+
+    final String? moodText = e['mood_text'] as String?;
+    final String? details = e['details'] as String?;
+    final String? mixedColor = e['mixed_color'] as String?;
+
+    // ✅ 重點：在任何 Navigator / showDialog / ScaffoldMessenger 之前加這行
+    if (!mounted) return;
+
+    if (type == 'Moment') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder:
+              (context) => MomentFeelingsScreen(
+                isEnglish: isEnglish,
+                date: _selectedDay,
+                isReadOnly: true,
+                emotions: emotions,
+                mixedColor: mixedColor,
+                moodText: moodText,
+                details: details,
+              ),
+        ),
+      );
+    } else {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder:
+              (context) => DayFeelingsScreen(
+                isEnglish: isEnglish,
+                date: _selectedDay,
+                isReadOnly: true,
+                emotions: emotions,
+                mixedColor: mixedColor,
+                moodText: moodText,
+                details: details,
+              ),
+        ),
+      );
+    }
+  }
+
+  Future<void> _openSearchSheet() async {
+    _searchController.clear();
+    setState(() {
+      _searchResults = [];
+      _isSearching = false;
+    });
+
+    // ignore: use_build_context_synchronously
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) {
+        return Padding(
+          padding: EdgeInsets.only(
+            left: 16,
+            right: 16,
+            top: 12,
+            bottom: MediaQuery.of(context).viewInsets.bottom + 12,
+          ),
+          child: SafeArea(
+            top: false,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // 搜尋輸入框 + 按鈕
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _searchController,
+                        decoration: InputDecoration(
+                          hintText:
+                              widget.isEnglish
+                                  ? 'Search diary...'
+                                  : '搜尋日記 / 當下感受...',
+                          border: const OutlineInputBorder(),
+                          isDense: true,
+                        ),
+                        onSubmitted: (_) => _performSearch(),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    ElevatedButton(
+                      onPressed: _isSearching ? null : _performSearch,
+                      child: Text(widget.isEnglish ? 'Search' : '搜尋'),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                // 結果列表
+                if (_isSearching)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: const [
+                        SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                        SizedBox(width: 8),
+                        Text('Searching...'),
+                      ],
+                    ),
+                  )
+                else if (_searchResults.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    child: Text(
+                      widget.isEnglish
+                          ? 'No results yet. Try a keyword (e.g., “sleep”).'
+                          : '尚無結果，試試輸入關鍵字（例如：「睡不著」）。',
+                      textAlign: TextAlign.center,
+                    ),
+                  )
+                else
+                  Flexible(
+                    child: ListView.separated(
+                      shrinkWrap: true,
+                      itemCount: _searchResults.length,
+                      separatorBuilder: (_, __) => const Divider(height: 1),
+                      itemBuilder: (context, index) {
+                        final e = _searchResults[index];
+                        final String type = (e['entry_type'] ?? '') as String;
+                        final String date = (e['entry_date'] ?? '') as String;
+                        final String time = (e['entry_time'] ?? '') as String;
+                        final String title = (e['mood_text'] as String?) ?? '';
+                        final List emos = (e['emotions'] ?? []) as List;
+
+                        final emoLabel = emos
+                            .map((x) => '${x['emotion']}')
+                            .take(4)
+                            .join(', ');
+
+                        return ListTile(
+                          leading: CircleAvatar(
+                            child: Text(type == 'Moment' ? 'M' : 'D'),
+                          ),
+                          title: Text(
+                            title.isEmpty
+                                ? (widget.isEnglish ? '(No text)' : '（無文字）')
+                                : title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          subtitle: Text('$date $time · $emoLabel'),
+                          onTap: () {
+                            Navigator.pop(context); // 關閉面板
+                            _onTapSearchResult(e);
+                          },
+                        );
+                      },
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  // ===================（原本 build 與 UI 保持不變，只在 AppBar 多一個搜尋鈕）===================
+
   @override
   Widget build(BuildContext context) {
     if (widget.isDiaryLocked) {
@@ -161,7 +395,16 @@ class DiaryReviewScreenState extends State<DiaryReviewScreen> {
     );
 
     return Scaffold(
-      appBar: AppBar(title: Text(widget.isEnglish ? 'Diary Review' : '本子回顧')),
+      appBar: AppBar(
+        title: Text(widget.isEnglish ? 'Diary Review' : '本子回顧'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.search),
+            onPressed: _openSearchSheet,
+            tooltip: widget.isEnglish ? 'Search' : '搜尋',
+          ),
+        ],
+      ),
       body: Container(
         decoration: const BoxDecoration(
           image: DecorationImage(

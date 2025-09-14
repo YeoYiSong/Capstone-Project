@@ -7,10 +7,10 @@ class DiaryScreen extends StatelessWidget {
 
   const DiaryScreen({super.key, this.isEnglish = false});
 
-  // 純色（無透明，避免「蒙」）
-  static const Color arrowText = Colors.black87; // 箭頭選項
-  static const Color cardBg = Color(0xFFE7EBE6); // 底部卡片實色灰
-  static const Color cardTextSub = Colors.black54;
+  // 綠系設計
+  static const Color bg = Color(0xFFDDEBD7); // 背景淡綠
+  static const Color deepGreen = Color(0xFF2E5F3A); // 文字/邊線深綠
+  static const Color cardBg = Color(0xFFB7C8B1); // 卡片綠
   static const double horizPad = 20;
 
   @override
@@ -26,18 +26,18 @@ class DiaryScreen extends StatelessWidget {
             : '每天簡單記錄，有助於建立自我觀察與內在對話的習慣。';
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: bg,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: horizPad),
           child: LayoutBuilder(
             builder: (context, constraints) {
-              // 以螢幕高做比例：上區塊 : 下卡片 ≈ 82:18
-              final bottomCardHeight = constraints.maxHeight * 0.18;
+              // 版面比例：上方內容填滿、底部卡片固定高度貼底
+              final double bottomCardHeight = 96;
 
               return Column(
                 children: [
-                  // ── 自訂 AppBar ──
+                  // ── 自訂 AppBar（左圓框返回 + 深綠標題） ──
                   SizedBox(
                     height: 56,
                     child: Row(
@@ -49,16 +49,14 @@ class DiaryScreen extends StatelessWidget {
                             width: 36,
                             height: 36,
                             decoration: BoxDecoration(
+                              color: Colors.transparent,
                               borderRadius: BorderRadius.circular(18),
-                              border: Border.all(
-                                color: Colors.black,
-                                width: 1.5,
-                              ),
+                              border: Border.all(color: deepGreen, width: 1.5),
                             ),
                             child: const Icon(
                               Icons.arrow_back,
                               size: 20,
-                              color: Colors.black,
+                              color: deepGreen,
                             ),
                           ),
                         ),
@@ -67,16 +65,16 @@ class DiaryScreen extends StatelessWidget {
                           titleText,
                           style: const TextStyle(
                             fontFamily: 'PixelFont',
-                            fontSize: 28,
-                            fontWeight: FontWeight.bold, // 加粗
-                            color: Colors.black, // 加深
+                            fontSize: 26,
+                            fontWeight: FontWeight.bold,
+                            color: deepGreen,
                           ),
                         ),
                       ],
                     ),
                   ),
 
-                  // ── 中央內容 ──
+                  // ── 中央內容：主標 + 兩個箭頭選項（深綠） ──
                   Expanded(
                     child: Center(
                       child: ConstrainedBox(
@@ -90,15 +88,15 @@ class DiaryScreen extends StatelessWidget {
                               textAlign: TextAlign.center,
                               style: const TextStyle(
                                 fontFamily: 'PixelFont',
-                                fontSize: 40,
-                                fontWeight: FontWeight.bold, // 加粗
-                                color: Colors.black, // 加深
+                                fontSize: 24,
+                                fontWeight: FontWeight.bold,
+                                color: deepGreen,
                               ),
                             ),
                             const SizedBox(height: 28),
                             _ArrowOption(
                               text: momentText,
-                              color: arrowText,
+                              color: deepGreen,
                               onTap: () {
                                 Navigator.push(
                                   context,
@@ -115,7 +113,7 @@ class DiaryScreen extends StatelessWidget {
                             const SizedBox(height: 16),
                             _ArrowOption(
                               text: dayText,
-                              color: arrowText,
+                              color: deepGreen,
                               onTap: () {
                                 Navigator.push(
                                   context,
@@ -135,7 +133,7 @@ class DiaryScreen extends StatelessWidget {
                     ),
                   ),
 
-                  // ── 底部卡片 ──
+                  // ── 底部卡片（貼底、圓角、右側方框 icon） ──
                   SizedBox(
                     height: bottomCardHeight,
                     width: double.infinity,
@@ -153,7 +151,7 @@ class DiaryScreen extends StatelessWidget {
                       },
                     ),
                   ),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 12),
                 ],
               );
             },
@@ -164,7 +162,7 @@ class DiaryScreen extends StatelessWidget {
   }
 }
 
-/// 箭頭式選項
+/// 箭頭式選項（深綠）
 class _ArrowOption extends StatelessWidget {
   final String text;
   final Color color;
@@ -186,16 +184,17 @@ class _ArrowOption extends StatelessWidget {
         textAlign: TextAlign.center,
         style: TextStyle(
           fontFamily: 'PixelFont',
-          fontSize: 36,
-          height: 1.2,
+          fontSize: 22,
+          height: 1.3,
           color: color,
+          fontWeight: FontWeight.w600,
         ),
       ),
     );
   }
 }
 
-/// 底部提示卡片
+/// 底部提示卡片（綠底、深綠文字、右側方框外連 icon）
 class _BenefitCard extends StatelessWidget {
   final String title;
   final String body;
@@ -214,17 +213,17 @@ class _BenefitCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: DiaryScreen.cardBg,
         borderRadius: BorderRadius.circular(22),
-        boxShadow: const [
+        boxShadow: [
           BoxShadow(
-            color: Color(0x1A000000),
-            offset: Offset(0, 6),
+            color: Colors.black.withValues(alpha: 0.08),
+            offset: const Offset(0, 6),
             blurRadius: 16,
           ),
         ],
       ),
       child: Row(
         children: [
-          // 文案
+          // 左側文字
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -236,7 +235,7 @@ class _BenefitCard extends StatelessWidget {
                     fontFamily: 'PixelFont',
                     fontSize: 16,
                     fontWeight: FontWeight.bold, // 加粗
-                    color: Colors.black, // 加深
+                    color: DiaryScreen.deepGreen, // 深綠
                   ),
                 ),
                 const SizedBox(height: 6),
@@ -245,14 +244,14 @@ class _BenefitCard extends StatelessWidget {
                   style: const TextStyle(
                     fontFamily: 'PixelFont',
                     fontSize: 14,
-                    color: DiaryScreen.cardTextSub,
+                    fontWeight: FontWeight.normal, // 一般
+                    color: DiaryScreen.deepGreen, // 深綠
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(width: 8),
-          // 右側方框 icon
+          // 右側方框按鈕
           InkWell(
             onTap: onAddPressed,
             borderRadius: BorderRadius.circular(10),
@@ -261,9 +260,13 @@ class _BenefitCard extends StatelessWidget {
               height: 36,
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: Colors.black87, width: 1.2),
+                border: Border.all(color: DiaryScreen.deepGreen, width: 1.4),
               ),
-              child: const Icon(Icons.add, color: Colors.black87, size: 20),
+              child: const Icon(
+                Icons.open_in_new,
+                color: DiaryScreen.deepGreen,
+                size: 20,
+              ),
             ),
           ),
         ],

@@ -7,6 +7,12 @@ import 'dart:convert';
 import 'package:http/browser_client.dart';
 import '/utils/config.dart';
 
+// ✅ 非阻塞地啟動推薦
+import 'dart:async' show unawaited;
+
+// 登入後要啟動推薦
+import '../utils/recommendation_manager.dart';
+
 class LoginScreen extends StatefulWidget {
   final bool isEnglish;
 
@@ -20,6 +26,29 @@ class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   bool _isLoading = false;
+
+  // ---------------- 共用：登入成功後做的事 ----------------
+  Future<void> _afterLogin(User user, int userId) async {
+    if (kDebugMode) {
+      print(
+        '[Login] userId=$userId, uid=${user.uid} -> kickoff recommendation (background)',
+      );
+    }
+
+    // 背景啟動，不阻塞導頁
+    unawaited(RecommendationManager.instance.kickoffAfterLogin());
+
+    if (!mounted) return;
+    Navigator.pushReplacementNamed(
+      context,
+      '/home',
+      arguments: {
+        'name': user.displayName ?? user.email ?? 'User',
+        'userId': userId,
+        'uid': user.uid,
+      },
+    );
+  }
 
   Future<void> _signInWithEmail() async {
     setState(() => _isLoading = true);
@@ -36,22 +65,14 @@ class _LoginScreenState extends State<LoginScreen> {
         }
         return;
       }
-      final UserCredential userCredential = await FirebaseAuth.instance
+
+      final UserCredential cred = await FirebaseAuth.instance
           .signInWithEmailAndPassword(email: email, password: password);
-      final User? user = userCredential.user;
+      final User? user = cred.user;
       if (user != null && mounted) {
         final int? userId = await _fetchUserId(user.uid);
         if (userId != null) {
-          if (!mounted) return;
-          Navigator.pushReplacementNamed(
-            context,
-            '/home',
-            arguments: {
-              'name': user.displayName ?? user.email ?? 'User',
-              'userId': userId,
-              'uid': user.uid,
-            },
-          );
+          await _afterLogin(user, userId);
         }
       }
     } on FirebaseAuthException catch (e) {
@@ -87,16 +108,7 @@ class _LoginScreenState extends State<LoginScreen> {
       if (user != null && mounted) {
         final int? userId = await _fetchUserId(user.uid);
         if (userId != null) {
-          if (!mounted) return;
-          Navigator.pushReplacementNamed(
-            context,
-            '/home',
-            arguments: {
-              'name': user.displayName ?? user.email ?? 'User',
-              'userId': userId,
-              'uid': user.uid,
-            },
-          );
+          await _afterLogin(user, userId);
         }
       }
     } catch (e) {
@@ -138,19 +150,11 @@ class _LoginScreenState extends State<LoginScreen> {
         final UserCredential userCredential = await FirebaseAuth.instance
             .signInWithCredential(credential);
         final User? user = userCredential.user;
+
         if (user != null && mounted) {
           final int? userId = await _fetchUserId(user.uid);
           if (userId != null) {
-            if (!mounted) return;
-            Navigator.pushReplacementNamed(
-              context,
-              '/home',
-              arguments: {
-                'name': user.displayName ?? user.email ?? 'User',
-                'userId': userId,
-                'uid': user.uid,
-              },
-            );
+            await _afterLogin(user, userId);
           }
         }
       } else {
@@ -188,6 +192,9 @@ class _LoginScreenState extends State<LoginScreen> {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
+        if (kDebugMode) {
+          print('[Login] fetched user_id=${data['user_id']} from backend');
+        }
         return data['user_id'];
       } else {
         _showSnackBar(
@@ -205,7 +212,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Future<void> _resetPassword() async {
     final TextEditingController emailController = TextEditingController();
-
     await showDialog<BuildContext>(
       context: context,
       builder: (dialogContext) {
@@ -220,9 +226,7 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
           actions: [
             TextButton(
-              onPressed: () {
-                Navigator.pop(dialogContext);
-              },
+              onPressed: () => Navigator.pop(dialogContext),
               child: Text(widget.isEnglish ? 'Cancel' : '取消'),
             ),
             TextButton(
@@ -240,7 +244,6 @@ class _LoginScreenState extends State<LoginScreen> {
                   }
                   return;
                 }
-
                 try {
                   await FirebaseAuth.instance.sendPasswordResetEmail(
                     email: email,
@@ -400,11 +403,11 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
             const SizedBox(height: 20),
             Row(
-              children: [
+              children: const [
                 Expanded(child: Divider(thickness: 1)),
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 10),
-                  child: Text(widget.isEnglish ? 'or' : '或'),
+                  padding: EdgeInsets.symmetric(horizontal: 10),
+                  child: Text('or'),
                 ),
                 Expanded(child: Divider(thickness: 1)),
               ],

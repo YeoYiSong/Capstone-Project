@@ -1,10 +1,12 @@
 import 'package:flutter/foundation.dart';
 import 'dart:math';
 import 'package:flutter/material.dart';
-import '../models/doodle_stroke.dart'; // 使用 EmotionHexSelector / EmotionHexRing
+import '../models/doodle_stroke.dart';
 import '../utils/color_mixing.dart';
 import '../utils/api_client.dart';
-import 'diary_saved_screen.dart';
+import '../utils/recommendation_manager.dart';
+// ✅ 新增：讓背景任務不阻塞 UI
+import 'dart:async' show unawaited;
 
 class DayFeelingsScreen extends StatefulWidget {
   final bool isEnglish;
@@ -31,13 +33,11 @@ class DayFeelingsScreen extends StatefulWidget {
 }
 
 class DayFeelingsScreenState extends State<DayFeelingsScreen> {
-  // —— 視覺色系（與 moment 新版一致）——
-  static const Color _bg = Color(0xFFDDEBD7);
+  // 固定用色（卡片/標題/線條/按鈕）
   static const Color _title = Color(0xFF2E5F3A);
   static const Color _card = Color(0xFFB7C8B1);
   static const Color _lineWhite = Color(0xFFFFFFFF);
   static const Color _btnEnabled = Color(0xFF2E5F3A);
-  static const Color _btnDisabled = Color(0xFFDDEBD7);
 
   String moodText = '';
   late final TextEditingController _moodController;
@@ -74,8 +74,10 @@ class DayFeelingsScreenState extends State<DayFeelingsScreen> {
   ];
   int _currentPromptIndex = 0;
 
-  // 已選情緒（持久顯示線條）
+  // 已選情緒（持久）
   List<Map<String, dynamic>> _selectedEmotions = [];
+  // 拖拉中的暫時選擇（用於即時背景預覽）
+  List<Map<String, dynamic>> _hoverTemp = const [];
 
   @override
   void initState() {
@@ -125,8 +127,53 @@ class DayFeelingsScreenState extends State<DayFeelingsScreen> {
     return hasText || hasEmotions;
   }
 
+  // —— 背景色計算：預設白色；合併目前選擇＋拖拉預覽，丟給混色工具 —— //
+  Color _computeBgColor() {
+    try {
+      final combined = <Map<String, dynamic>>[];
+      combined.addAll(
+        _selectedEmotions.map((e) => Map<String, dynamic>.from(e)),
+      );
+      if (_hoverTemp.isNotEmpty) {
+        final temp = _hoverTemp.first;
+        final idx = combined.indexWhere((e) => e['emotion'] == temp['emotion']);
+        if (idx >= 0) {
+          combined[idx] = temp;
+        } else {
+          combined.add(temp);
+        }
+      }
+      if (combined.isEmpty) return Colors.white;
+
+      final String hex = mixColorsWithAlpha(combined);
+      if (hex.trim().isEmpty) return Colors.white;
+      return _hexToColor(hex);
+    } catch (_) {
+      return Colors.white;
+    }
+  }
+
+  /// 若有 DB 帶入的 mixedColor，優先用它；否則才用即時計算
+  Color _resolveBgColor() {
+    final s = widget.mixedColor?.trim() ?? '';
+    if (s.isNotEmpty) return _hexToColor(s);
+    return _computeBgColor();
+  }
+
+  // 解析 '#RRGGBB' / '#AARRGGBB' / '0xAARRGGBB'
+  Color _hexToColor(String hex) {
+    var s = hex.trim();
+    if (s.startsWith('0x') || s.startsWith('0X')) s = s.substring(2);
+    if (s.startsWith('#')) s = s.substring(1);
+    if (s.length == 6) s = 'FF$s'; // 無 alpha 就補 FF
+    final val = int.parse(s, radix: 16);
+    return Color(val);
+  }
+
   @override
   Widget build(BuildContext context) {
+    final bg = _resolveBgColor(); // 先用 mixedColor（唯讀模式也能顯示正確顏色）
+
     final titleText = widget.isEnglish ? 'Day Feelings' : '整天的感受';
     final promptTitle = widget.isEnglish ? 'Reflect on Today' : '回顧一下今天吧';
     final whyText =
@@ -135,331 +182,338 @@ class DayFeelingsScreenState extends State<DayFeelingsScreen> {
     final doneText = widget.isEnglish ? 'Done' : '完成';
 
     return Scaffold(
-      backgroundColor: _bg,
-      appBar: PreferredSize(
-        preferredSize: const Size.fromHeight(64),
+      backgroundColor: Colors.white,
+      body: AnimatedContainer(
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+        color: bg, // 背景色
         child: SafeArea(
-          bottom: false,
-          child: Container(
-            color: _bg,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Row(
-              children: [
-                InkWell(
-                  borderRadius: BorderRadius.circular(24),
-                  onTap: () => Navigator.maybePop(context),
-                  child: Container(
-                    width: 36,
-                    height: 36,
-                    decoration: BoxDecoration(
-                      color: Colors.transparent,
-                      borderRadius: BorderRadius.circular(18),
-                      border: Border.all(color: _title, width: 1.5),
-                    ),
-                    child: const Icon(
-                      Icons.arrow_back,
-                      size: 20,
-                      color: _title,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Text(
-                  titleText,
-                  style: const TextStyle(
-                    fontFamily: 'PixelFont',
-                    fontSize: 26,
-                    color: _title,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-      body: LayoutBuilder(
-        builder: (context, constraints) {
-          final double w = constraints.maxWidth;
-          final double ringSize = w * 0.52;
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final double w = constraints.maxWidth;
+              final double ringSize = w * 0.52;
 
-          return SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                const SizedBox(height: 4),
-
-                // —— 中央六邊形（可拖拉；唯讀時禁用互動）——
-                IgnorePointer(
-                  ignoring: widget.isReadOnly,
-                  child: EmotionHexSelector(
-                    size: ringSize,
-                    labels: const ['喜悅', '積極', '焦慮', '悲傷', '疲憊', '憤怒'],
-                    selections: _selectedEmotions,
-                    onChanged: (_) {},
-                    onCommit: (one) {
-                      // 同名覆蓋
-                      final i = _selectedEmotions.indexWhere(
-                        (e) => e['emotion'] == one['emotion'],
-                      );
-                      if (i >= 0) {
-                        _selectedEmotions[i] = one;
-                      } else {
-                        _selectedEmotions.add(one);
-                      }
-                      setState(() {});
-                    },
-                  ),
-                ),
-
-                const SizedBox(height: 16),
-
-                // —— 提示語卡片（點一下換一題；唯讀仍顯示但不互動）——
-                _RoundedLinedCard(
-                  background: _card,
-                  lineColor: _lineWhite.withValues(alpha: 0.45),
-                  padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-                  minHeight: 84,
-                  maxHeight: 120,
-                  child: InkWell(
-                    onTap: widget.isReadOnly ? null : _switchPrompt,
-                    borderRadius: BorderRadius.circular(24),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+              return SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    // AppBar
+                    Row(
                       children: [
-                        Text(
-                          promptTitle,
-                          style: const TextStyle(
-                            fontFamily: 'PixelFont',
-                            fontSize: 16,
-                            color: Colors.white,
+                        InkWell(
+                          borderRadius: BorderRadius.circular(24),
+                          onTap: () => Navigator.maybePop(context),
+                          child: Container(
+                            width: 36,
+                            height: 36,
+                            decoration: BoxDecoration(
+                              color: Colors.transparent,
+                              borderRadius: BorderRadius.circular(18),
+                              border: Border.all(color: _title, width: 1.5),
+                            ),
+                            child: const Icon(
+                              Icons.arrow_back,
+                              size: 20,
+                              color: _title,
+                            ),
                           ),
                         ),
-                        const SizedBox(height: 6),
-                        AnimatedSwitcher(
-                          duration: const Duration(milliseconds: 300),
-                          transitionBuilder:
-                              (child, anim) =>
-                                  FadeTransition(opacity: anim, child: child),
-                          child: Text(
-                            _prompts[_currentPromptIndex],
-                            key: ValueKey(_currentPromptIndex),
-                            style: const TextStyle(
-                              fontFamily: 'PixelFont',
-                              fontSize: 16,
-                              color: Colors.white,
-                            ),
+                        const SizedBox(width: 12),
+                        Text(
+                          titleText,
+                          style: const TextStyle(
+                            fontFamily: 'PixelFont',
+                            fontSize: 26,
+                            color: _title,
                           ),
                         ),
                       ],
                     ),
-                  ),
-                ),
 
-                const SizedBox(height: 16),
+                    const SizedBox(height: 12),
 
-                // —— 主要敘述卡片 ——
-                _RoundedLinedCard(
-                  background: _card,
-                  lineColor: _lineWhite.withValues(alpha: 0.45),
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
-                  minHeight: 190,
-                  maxHeight: 220,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        whyText,
-                        style: const TextStyle(
-                          fontFamily: 'PixelFont',
-                          fontSize: 18,
-                          color: Colors.white,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Expanded(
-                        child: TextField(
-                          controller: _moodController,
-                          focusNode: _moodFocusNode,
-                          style: const TextStyle(
-                            fontFamily: 'PixelFont',
-                            fontSize: 18,
-                            color: Colors.white,
-                          ),
-                          decoration: const InputDecoration(
-                            border: InputBorder.none,
-                            hintText: '',
-                          ),
-                          onChanged: (text) => moodText = text,
-                          maxLines: null,
-                          keyboardType: TextInputType.multiline,
-                          enabled: !widget.isReadOnly && !_isSaving,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                const SizedBox(height: 16),
-
-                // —— 次要細節卡片 ——
-                _RoundedLinedCard(
-                  background: _card.withValues(alpha: 0.92),
-                  lineColor: _lineWhite.withValues(alpha: 0.35),
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-                  minHeight: 120,
-                  maxHeight: 160,
-                  child: TextField(
-                    controller: _detailsController,
-                    focusNode: _detailsFocusNode,
-                    style: const TextStyle(
-                      fontFamily: 'PixelFont',
-                      fontSize: 16,
-                      color: Colors.white,
-                    ),
-                    decoration: InputDecoration(
-                      border: InputBorder.none,
-                      hintText: moreText,
-                      hintStyle: const TextStyle(
-                        fontFamily: 'PixelFont',
-                        color: Colors.white70,
-                        fontSize: 16,
+                    // 六邊形（互動）
+                    IgnorePointer(
+                      ignoring: widget.isReadOnly,
+                      child: EmotionHexSelector(
+                        size: ringSize,
+                        labels: const ['喜悅', '積極', '焦慮', '悲傷', '疲憊', '憤怒'],
+                        selections: _selectedEmotions,
+                        onChanged: (temp) {
+                          setState(() {
+                            _hoverTemp = temp;
+                          });
+                        },
+                        onCommit: (one) {
+                          final i = _selectedEmotions.indexWhere(
+                            (e) => e['emotion'] == one['emotion'],
+                          );
+                          if (i >= 0) {
+                            _selectedEmotions[i] = one;
+                          } else {
+                            _selectedEmotions.add(one);
+                          }
+                          setState(() {
+                            _hoverTemp = const [];
+                          });
+                        },
                       ),
                     ),
-                    maxLines: null,
-                    keyboardType: TextInputType.multiline,
-                    enabled: !widget.isReadOnly && !_isSaving,
-                  ),
-                ),
 
-                const SizedBox(height: 18),
+                    const SizedBox(height: 16),
 
-                if (!widget.isReadOnly)
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: ElevatedButton(
-                      onPressed:
-                          (!_canSubmit || _isSaving)
-                              ? null
-                              : () async {
-                                setState(() => _isSaving = true);
-
-                                void navigateToSavedScreen() {
-                                  if (!mounted) return;
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder:
-                                          (context) => DiarySavedScreen(
-                                            isEnglish: widget.isEnglish,
-                                            selectedEmotions: _selectedEmotions,
-                                            mixedColor: mixColorsWithAlpha(
-                                              _selectedEmotions,
-                                            ),
-                                          ),
-                                    ),
-                                  );
-                                }
-
-                                void showErrorSnackBar(Object e) {
-                                  if (!mounted) return;
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text(
-                                        'Failed to save day entry: $e',
-                                      ),
-                                    ),
-                                  );
-                                }
-
-                                try {
-                                  final mixedColorWithAlpha =
-                                      mixColorsWithAlpha(_selectedEmotions);
-
-                                  // 保持你原本的欄位映射（joy/sadness/anger/positive/anxiety/exhaust）
-                                  Map<String, double> emotionMap = {
-                                    'joy': 0,
-                                    'sadness': 0,
-                                    'anger': 0,
-                                    'positive': 0,
-                                    'anxiety': 0,
-                                    'exhaust': 0,
-                                  };
-
-                                  for (var emotion in _selectedEmotions) {
-                                    final e =
-                                        (emotion['emotion'] as String)
-                                            .toLowerCase();
-                                    final value =
-                                        double.tryParse(
-                                          emotion['intensity'].toString(),
-                                        ) ??
-                                        0;
-                                    if (emotionMap.containsKey(e)) {
-                                      emotionMap[e] = value;
-                                    }
-                                  }
-
-                                  await _apiClient.saveDiaryEntry(
-                                    date: widget.date,
-                                    type: 'Day',
-                                    emotions: _selectedEmotions,
-                                    mixedColor: mixedColorWithAlpha,
-                                    moodText: moodText,
-                                    details: _detailsController.text,
-                                    isEnglish: widget.isEnglish,
-                                    joy: emotionMap['joy']!,
-                                    sadness: emotionMap['sadness']!,
-                                    anger: emotionMap['anger']!,
-                                    positive: emotionMap['positive']!,
-                                    anxiety: emotionMap['anxiety']!,
-                                    exhaust: emotionMap['exhaust']!,
-                                  );
-
-                                  navigateToSavedScreen();
-                                } catch (e) {
-                                  if (kDebugMode) {
-                                    // ignore: avoid_print
-                                    print('Error saving day entry: $e');
-                                  }
-                                  showErrorSnackBar(e);
-                                } finally {
-                                  if (mounted) {
-                                    setState(() => _isSaving = false);
-                                  }
-                                }
-                              },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor:
-                            _canSubmit ? _btnEnabled : _btnDisabled,
-                        foregroundColor:
-                            _canSubmit ? Colors.white : const Color(0xFF9CB39F),
-                        elevation: _canSubmit ? 2 : 0,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 26,
-                          vertical: 12,
+                    // 提示語卡片
+                    _RoundedLinedCard(
+                      background: _card,
+                      lineColor: _lineWhite.withValues(alpha: 0.45),
+                      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+                      minHeight: 84,
+                      maxHeight: 120,
+                      child: InkWell(
+                        onTap: widget.isReadOnly ? null : _switchPrompt,
+                        borderRadius: BorderRadius.circular(24),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              promptTitle,
+                              style: const TextStyle(
+                                fontFamily: 'PixelFont',
+                                fontSize: 16,
+                                color: Colors.white,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            AnimatedSwitcher(
+                              duration: const Duration(milliseconds: 300),
+                              transitionBuilder:
+                                  (child, anim) => FadeTransition(
+                                    opacity: anim,
+                                    child: child,
+                                  ),
+                              child: Text(
+                                _prompts[_currentPromptIndex],
+                                key: ValueKey(_currentPromptIndex),
+                                style: const TextStyle(
+                                  fontFamily: 'PixelFont',
+                                  fontSize: 16,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                        shape: const StadiumBorder(),
                       ),
-                      child: Text(
-                        doneText,
+                    ),
+
+                    const SizedBox(height: 16),
+
+                    // 主要敘述卡片
+                    _RoundedLinedCard(
+                      background: _card,
+                      lineColor: _lineWhite.withValues(alpha: 0.45),
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+                      minHeight: 190,
+                      maxHeight: 220,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            whyText,
+                            style: const TextStyle(
+                              fontFamily: 'PixelFont',
+                              fontSize: 18,
+                              color: Colors.white,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Expanded(
+                            child: TextField(
+                              controller: _moodController,
+                              focusNode: _moodFocusNode,
+                              style: const TextStyle(
+                                fontFamily: 'PixelFont',
+                                fontSize: 18,
+                                color: Colors.white,
+                              ),
+                              decoration: const InputDecoration(
+                                border: InputBorder.none,
+                                hintText: '',
+                              ),
+                              onChanged: (text) => moodText = text,
+                              maxLines: null,
+                              keyboardType: TextInputType.multiline,
+                              enabled: !widget.isReadOnly && !_isSaving,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(height: 16),
+
+                    // 次要細節卡片
+                    _RoundedLinedCard(
+                      background: _card.withValues(alpha: 0.92),
+                      lineColor: _lineWhite.withValues(alpha: 0.35),
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                      minHeight: 120,
+                      maxHeight: 160,
+                      child: TextField(
+                        controller: _detailsController,
+                        focusNode: _detailsFocusNode,
                         style: const TextStyle(
                           fontFamily: 'PixelFont',
                           fontSize: 16,
+                          color: Colors.white,
                         ),
+                        decoration: InputDecoration(
+                          border: InputBorder.none,
+                          hintText: moreText,
+                          hintStyle: const TextStyle(
+                            fontFamily: 'PixelFont',
+                            color: Colors.white70,
+                            fontSize: 16,
+                          ),
+                        ),
+                        maxLines: null,
+                        keyboardType: TextInputType.multiline,
+                        enabled: !widget.isReadOnly && !_isSaving,
                       ),
                     ),
-                  ),
-              ],
-            ),
-          );
-        },
+
+                    const SizedBox(height: 18),
+
+                    if (!widget.isReadOnly)
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: ElevatedButton(
+                          onPressed:
+                              (!_canSubmit || _isSaving)
+                                  ? null
+                                  : () async {
+                                    setState(() => _isSaving = true);
+
+                                    void showErrorSnackBar(Object e) {
+                                      if (!mounted) return;
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        SnackBar(
+                                          content: Text(
+                                            'Failed to save day entry: $e',
+                                          ),
+                                        ),
+                                      );
+                                    }
+
+                                    try {
+                                      final mixedColorWithAlpha =
+                                          mixColorsWithAlpha(_selectedEmotions);
+
+                                      final Map<String, double> emotionMap = {
+                                        'joy': 0,
+                                        'sadness': 0,
+                                        'anger': 0,
+                                        'positive': 0,
+                                        'anxiety': 0,
+                                        'exhaust': 0,
+                                      };
+
+                                      for (final emotion in _selectedEmotions) {
+                                        final key =
+                                            (emotion['emotion'] as String)
+                                                .toLowerCase();
+                                        final v = (double.tryParse(
+                                                  '${emotion['intensity']}',
+                                                ) ??
+                                                0)
+                                            .clamp(0, 100);
+                                        if (emotionMap.containsKey(key)) {
+                                          emotionMap[key] = v.toDouble();
+                                        }
+                                      }
+
+                                      await _apiClient.saveDiaryEntry(
+                                        date: widget.date,
+                                        type: 'Day',
+                                        emotions: _selectedEmotions,
+                                        mixedColor: mixedColorWithAlpha,
+                                        moodText: moodText,
+                                        details: _detailsController.text,
+                                        isEnglish: widget.isEnglish,
+                                        joy: emotionMap['joy']!,
+                                        sadness: emotionMap['sadness']!,
+                                        anger: emotionMap['anger']!,
+                                        positive: emotionMap['positive']!,
+                                        anxiety: emotionMap['anxiety']!,
+                                        exhaust: emotionMap['exhaust']!,
+                                      );
+
+                                      // ✅ 存檔成功後：在背景觸發/重觸發推薦，不阻塞跳頁
+                                      unawaited(
+                                        RecommendationManager.instance
+                                            .maybeRefreshAfterDaySaved(
+                                              widget.date,
+                                            ),
+                                      );
+
+                                      if (!context.mounted) return;
+                                      Navigator.of(context).pushNamed(
+                                        '/diary_review',
+                                        arguments: {
+                                          'animate': true,
+                                          'date': widget.date,
+                                          'color': mixedColorWithAlpha,
+                                        },
+                                      );
+                                    } catch (e) {
+                                      if (kDebugMode) {
+                                        // ignore: avoid_print
+                                        print('Error saving day entry: $e');
+                                      }
+                                      showErrorSnackBar(e);
+                                    } finally {
+                                      if (mounted) {
+                                        setState(() => _isSaving = false);
+                                      }
+                                    }
+                                  },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: _canSubmit ? _btnEnabled : bg,
+                            foregroundColor:
+                                _canSubmit
+                                    ? Colors.white
+                                    : const Color(0xFF9CB39F),
+                            elevation: _canSubmit ? 2 : 0,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 26,
+                              vertical: 12,
+                            ),
+                            shape: const StadiumBorder(),
+                          ),
+                          child: Text(
+                            doneText,
+                            style: const TextStyle(
+                              fontFamily: 'PixelFont',
+                              fontSize: 16,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ),
       ),
     );
   }
 }
 
-/// 圓角陰影卡片 + 內部水平線（與 moment 一致）
+/// 圓角陰影卡片 + 內部水平線
 class _RoundedLinedCard extends StatelessWidget {
   final Color background;
   final Color lineColor;

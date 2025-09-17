@@ -1,0 +1,10 @@
+| 項目                                           | 狀態 / 版本              | 備註說明                      |
+| -------------------------------------------- | -------------------- | ------------------------- |
+| Flutter SDK                                  | 3.19.x               | ✔️ 已支援 Firebase           |
+| Firebase plugins (`pubspec.yaml`)            | 最新版（如 2.27.x）        | ✔️ 與 Flutter 3.19 相容      |
+| Android Gradle Plugin (AGP)                  | 8.7.0                | ✔️ 與 Kotlin / Firebase 相容 |
+| Kotlin Plugin                                | 1.8.22               | ✔️ Firebase 官方建議的最高版本     |
+| google-services plugin                       | ✅ 4.4.1              | ✔️ 最新穩定版本                 |
+| google-services.json                         | ✅ 已放入 `android/app/` | ✔️ 正確位置                   |
+| Gradle Wrapper (`gradle-wrapper.properties`) | 8.4                  | ✔️ 與 AGP/Firebase 相容最佳版本  |
+| DSL 格式                                       | `.kts`（Kotlin DSL）   | ✔️ Flutter 新版專案預設         |

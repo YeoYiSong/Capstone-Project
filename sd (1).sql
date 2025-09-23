@@ -2,9 +2,9 @@
 -- version 5.2.1
 -- https://www.phpmyadmin.net/
 --
--- 主機： 127.0.0.1
--- 產生時間： 2025 年 07 月 28 日 08:56
--- 伺服器版本： 10.4.32-MariaDB-log
+-- 主机： 127.0.0.1
+-- 生成日期： 2025-08-14 07:49:23
+-- 服务器版本： 10.4.32-MariaDB
 -- PHP 版本： 8.2.12
 
 SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
@@ -18,13 +18,13 @@ SET time_zone = "+00:00";
 /*!40101 SET NAMES utf8mb4 */;
 
 --
--- 資料庫： `sd`
+-- 数据库： `sd`
 --
 
 -- --------------------------------------------------------
 
 --
--- 資料表結構 `auth_users`
+-- 表的结构 `auth_users`
 --
 
 CREATE TABLE `auth_users` (
@@ -40,16 +40,16 @@ CREATE TABLE `auth_users` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
--- 傾印資料表的資料 `auth_users`
+-- 转存表中的数据 `auth_users`
 --
 
 INSERT INTO `auth_users` (`id`, `phone_number`, `password`, `google_id`, `google_bound`, `apple_id`, `apple_bound`, `create_at`, `firebase_uid`) VALUES
-(3, NULL, NULL, NULL, 0, NULL, 0, '2025-07-09 17:28:04', 'Sm5RG6yzcgTaQeseduqwSD6o5bo1');
+(4, NULL, NULL, NULL, 0, NULL, 0, '2025-07-19 00:34:48', 'Sm5RG6yzcgTaQeseduqwSD6o5bo1');
 
 -- --------------------------------------------------------
 
 --
--- 資料表結構 `breath_record`
+-- 表的结构 `breath_record`
 --
 
 CREATE TABLE `breath_record` (
@@ -63,17 +63,18 @@ CREATE TABLE `breath_record` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
--- 傾印資料表的資料 `breath_record`
+-- 转存表中的数据 `breath_record`
 --
 
 INSERT INTO `breath_record` (`id`, `user_id`, `duration`, `min`, `feeling`, `create_at`, `type`) VALUES
-(3, 5, 5, 5, NULL, '2025-07-09 17:30:54', '引導'),
-(4, 5, 5, 5, '阿斯頓撒', '2025-07-09 17:31:01', '引導');
+(5, 6, 5, 5, '阿達', '2025-07-19 01:10:10', '引導'),
+(6, 6, 5, 5, '撒大大', '2025-07-30 21:10:13', '引導'),
+(7, 6, 5, 5, '很輕鬆', '2025-07-31 19:34:18', '引導');
 
 -- --------------------------------------------------------
 
 --
--- 資料表結構 `color`
+-- 表的结构 `color`
 --
 
 CREATE TABLE `color` (
@@ -86,7 +87,7 @@ CREATE TABLE `color` (
 -- --------------------------------------------------------
 
 --
--- 資料表結構 `diaries`
+-- 表的结构 `diaries`
 --
 
 CREATE TABLE `diaries` (
@@ -107,16 +108,18 @@ CREATE TABLE `diaries` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
--- 傾印資料表的資料 `diaries`
+-- 转存表中的数据 `diaries`
 --
 
 INSERT INTO `diaries` (`id`, `user_id`, `content`, `joy`, `sadness`, `anger`, `positive`, `anxiety`, `exhaust`, `color_mix`, `create_at`, `oil_id`, `details`, `is_english`) VALUES
-(21, 5, '很辛苦地帶飛了整個遊戲的勝利', 0, 0, 62.2794, 0, 0, 0, '#FFF46418', '2025-07-09 17:28:58', NULL, '一群不行的菜雞', 0);
+(22, 6, '啊實打實', 0, 0, 0, 83.6863, 0, 0, '#FFC36100', '2025-07-19 01:10:37', NULL, '阿達', 0),
+(23, 6, '很煩躁', 0, 0, 91.8998, 0, 0, 0, '#FFAE0000', '2025-07-30 21:12:35', NULL, '', 0),
+(24, 6, '我一定可以一直成功下去的', 0, 0, 0, 85.8193, 0, 0, '#FFBD5F00', '2025-08-13 14:26:28', NULL, '', 0);
 
 -- --------------------------------------------------------
 
 --
--- 資料表結構 `effect`
+-- 表的结构 `effect`
 --
 
 CREATE TABLE `effect` (
@@ -125,33 +128,43 @@ CREATE TABLE `effect` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
--- 傾印資料表的資料 `effect`
+-- 转存表中的数据 `effect`
 --
 
 INSERT INTO `effect` (`id`, `name`) VALUES
-(1, '舒緩焦慮'),
-(2, '改善水腫'),
-(3, '舒緩便秘'),
-(4, '緊緻毛孔'),
-(5, '輔助減重'),
-(6, '緩解呼吸道不適'),
-(7, '舒緩肌肉疼痛'),
-(8, '抗老化'),
-(9, '舒緩緊張'),
-(10, '促進睡眠'),
-(11, '舒緩腸胃脹氣'),
-(12, '促進皮膚修護'),
-(13, '舒緩經痛'),
-(14, '改善痘痘'),
-(15, '促進消化'),
-(16, '緩解頭痛'),
-(17, '淨化空氣'),
-(18, '消除黑眼圈');
+(1, '感冒'),
+(2, '腸胃脹氣'),
+(3, '沒胃口'),
+(4, '焦慮'),
+(5, '青春痘'),
+(6, '經痛'),
+(7, '咳嗽'),
+(8, '驚嚇'),
+(9, '預防皺紋'),
+(10, '曬傷'),
+(11, '緊張'),
+(12, '便秘'),
+(13, '消除黑眼圈'),
+(14, '疤痕'),
+(15, '失眠'),
+(16, '淤青'),
+(17, '抑鬱'),
+(18, '高血壓'),
+(19, '消化不良'),
+(20, '偏頭痛'),
+(21, '痙攣'),
+(22, '鼻塞'),
+(23, '瘦身'),
+(24, '減肥'),
+(25, '肌肉痛'),
+(26, '低血壓'),
+(27, '水腫'),
+(28, '毛孔粗大');
 
 -- --------------------------------------------------------
 
 --
--- 資料表結構 `emoji`
+-- 表的结构 `emoji`
 --
 
 CREATE TABLE `emoji` (
@@ -163,7 +176,7 @@ CREATE TABLE `emoji` (
 -- --------------------------------------------------------
 
 --
--- 資料表結構 `now`
+-- 表的结构 `now`
 --
 
 CREATE TABLE `now` (
@@ -182,16 +195,18 @@ CREATE TABLE `now` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
--- 傾印資料表的資料 `now`
+-- 转存表中的数据 `now`
 --
 
 INSERT INTO `now` (`id`, `user_id`, `joy`, `sadness`, `anger`, `positive`, `anxiety`, `exhaust`, `note`, `create_at`, `details`, `is_english`) VALUES
-(6, 5, 0, 0, 0, 0, 0, 0, '跟大家demo', '2025-07-09 17:28:17', '很不錯', 0);
+(7, 6, 0, 0, 0, 0, 57.7213, 0, '阿斯頓撒旦', '2025-07-19 01:10:26', '撒大大', 0),
+(8, 6, 0, 91.9608, 0, 0, 0, 0, '阿斯頓撒', '2025-07-30 21:11:20', '薩達', 0),
+(9, 6, 0, 0, 0, 0, 0, 0, '我很高興我能完成好今天的任務哦~~', '2025-08-13 14:39:26', '', 0);
 
 -- --------------------------------------------------------
 
 --
--- 資料表結構 `oil`
+-- 表的结构 `oil`
 --
 
 CREATE TABLE `oil` (
@@ -199,39 +214,41 @@ CREATE TABLE `oil` (
   `name` varchar(100) NOT NULL,
   `meaning` text DEFAULT NULL,
   `effect` text DEFAULT NULL,
-  `image_url` text DEFAULT NULL
+  `image_url` text DEFAULT NULL,
+  `price` int(11) DEFAULT NULL,
+  `spec_ml` int(11) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
--- 傾印資料表的資料 `oil`
+-- 转存表中的数据 `oil`
 --
 
-INSERT INTO `oil` (`id`, `name`, `meaning`, `effect`, `image_url`) VALUES
-(1, '薰衣草精油', NULL, NULL, NULL),
-(2, '佛手柑精油', NULL, NULL, NULL),
-(3, '尤加利精油', NULL, NULL, NULL),
-(4, '迷迭香精油', NULL, NULL, NULL),
-(5, '乳香精油', NULL, NULL, NULL),
-(6, '快樂鼠尾草精油', NULL, NULL, NULL),
-(7, '檀香精油', NULL, NULL, NULL),
-(8, '雪松精油', NULL, NULL, NULL),
-(9, '茶樹精油', NULL, NULL, NULL),
-(10, '天竺葵精油', NULL, NULL, NULL),
-(11, '檸檬精油', NULL, NULL, NULL),
-(12, '羅勒精油', NULL, NULL, NULL),
-(13, '黑胡椒精油', NULL, NULL, NULL),
-(14, '丁香精油', NULL, NULL, NULL),
-(15, '絲柏精油', NULL, NULL, NULL),
-(16, '茴香精油', NULL, NULL, NULL),
-(17, '馬鬱蘭精油', NULL, NULL, NULL),
-(18, '玫瑰精油', NULL, NULL, NULL),
-(19, '岩蘭草精油', NULL, NULL, NULL),
-(20, '伊蘭伊蘭精油', NULL, NULL, NULL);
+INSERT INTO `oil` (`id`, `name`, `meaning`, `effect`, `image_url`, `price`, `spec_ml`) VALUES
+(1, '薰衣草精油', '薰衣草擁有柔和清新的花香氣息…適合用於睡前放鬆、靜心冥想或紓壓沐浴。', '改善焦慮、幫助入睡、舒緩肌肉痠痛、調理痘痘肌膚', NULL, 1400, 15),
+(2, '佛手柑精油', '佛手柑散發出明亮、帶著淡淡甜味的柑橘香…適合早晨醒來或在壓力沉重的日子中使用。', '改善焦慮與抑鬱、促進消化、舒緩腸胃脹氣、緊緻毛孔', NULL, 1900, 15),
+(3, '尤加利精油', '尤加利氣味清涼醒腦，如森林間的清晨空氣…常用於擴香器中淨化環境或在洗澡時加入幾滴喚醒身心。', '暢通呼吸道、緩解咳嗽與鼻塞、放鬆肌肉、輔助瘦身', NULL, 1100, 15),
+(4, '迷迭香精油', '帶有草本與木質的清新氣味，常被用來提振精神與提升專注力…', '促進消化、緩解頭痛、改善痘痘、幫助雕塑體態', NULL, 1000, 15),
+(5, '乳香精油', '帶有溫暖、樹脂般的神聖氣息，常用於冥想與靜心…對肌膚有修護與緊緻效果。', '放鬆焦慮、舒緩緊張、促進皮膚修護、抗老化', NULL, 4150, 15),
+(6, '快樂鼠尾草精油', '淡淡甜味與草本香氣，適合在需要自我照顧、療癒心靈的時刻…', '舒緩經期不適、減輕焦慮與頭痛、穩定情緒壓力', NULL, 2000, 15),
+(7, '檀香精油', '溫潤厚實的木質氣味，能帶來內在寧靜與沉穩，適合靜坐或睡前深層放鬆。', '安撫情緒、促進睡眠、修護疤痕、細緻膚質', NULL, 3950, 5),
+(8, '雪松精油', '溫和穩重的木質香氣，有助放鬆神經與情緒平衡，也常用於護膚與控油。', '緩解焦慮、收斂毛孔、舒緩便秘與咳嗽', NULL, 750, 15),
+(9, '茶樹精油', '清新強烈的草本香氣，以潔淨與防護特性著稱，常見於居家清潔與肌膚保養。', '舒緩咳嗽、改善消化不良、淨化空氣、控油抗痘', NULL, 1150, 15),
+(10, '天竺葵精油', '融合花香與青草的香氣，有助情緒平衡與肌膚調理，為日常注入溫柔與平靜。', '舒緩焦慮與緊張、改善水腫、淡化黑眼圈與痘痘', NULL, 2200, 15),
+(11, '檸檬精油', '明亮的柑橘香氣，能迅速提振精神、淨化空氣，適合晨起或提神使用。', '促進消化、改善毛孔與痘痘、幫助瘦身與利水', NULL, 700, 15),
+(12, '羅勒精油', '清新的草本香氣，適合思緒混亂或精神疲憊時使用，讓身心回歸平衡。', '舒緩咳嗽與鼻塞、改善消化不良、減輕偏頭痛與緊張', NULL, 1825, 15),
+(13, '黑胡椒精油', '溫暖辛香，具有激勵與提振的力量，適合運動後或疲勞時使用。', '促進消化、改善胃口、舒緩肌肉痠痛、改善便秘與低血壓', NULL, 1125, 15),
+(14, '丁香精油', '濃郁溫暖、帶甜與木質調，能安定心神與提升專注。', '緩解感冒不適、舒緩經痛與肌肉痛、改善痘痘', NULL, 900, 15),
+(15, '絲柏精油', '自然乾淨的木質香氣，協助情緒安撫與促進循環，帶來內在的平衡與穩定。', '緩解經痛、幫助排水與減重', NULL, 900, 15),
+(16, '茴香精油', '甘甜柔和的草本香，常用於身體調理與促進代謝，餐後使用能讓身體更輕盈。', '促進消化、舒緩便秘與經痛、幫助減肥與水腫', NULL, 920, 15),
+(17, '馬鬱蘭精油', '溫暖甜美的草本氣味，安撫煩躁心緒，適合放鬆儀式或睡前使用。', '緩解焦慮、改善失眠、舒緩經痛與肌肉痠痛', NULL, 1255, 15),
+(18, '玫瑰精油', '濃郁柔美的花香，是愛與療癒的象徵，常用於情感支持與肌膚保養。', '舒緩焦慮與失眠、改善經痛與便祕、促進膚質修護、消除黑眼圈', NULL, 12000, 5),
+(19, '岩蘭草精油', '深沉泥土香，被譽為「大地之油」，帶來安定與穩固，適合長期壓力與失眠。', '舒緩焦慮與失眠、放鬆肌肉、調理痘痘', NULL, 3055, 15),
+(20, '伊蘭伊蘭精油', '濃郁甜美花香，喚醒感官與情緒，對油性肌膚與頭皮護理也很有效。', '舒緩焦慮與抑鬱、改善毛孔與痘痘、幫助入眠與利水', NULL, 2000, 15);
 
 -- --------------------------------------------------------
 
 --
--- 資料表結構 `oil_effect`
+-- 表的结构 `oil_effect`
 --
 
 CREATE TABLE `oil_effect` (
@@ -240,93 +257,310 @@ CREATE TABLE `oil_effect` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
--- 傾印資料表的資料 `oil_effect`
+-- 转存表中的数据 `oil_effect`
 --
 
 INSERT INTO `oil_effect` (`oil_id`, `effect_id`) VALUES
-(1, 1),
+(1, 2),
+(1, 3),
 (1, 7),
-(1, 10),
-(1, 14),
-(2, 1),
+(1, 11),
+(1, 17),
+(1, 19),
+(1, 20),
+(1, 21),
+(1, 22),
+(1, 25),
+(1, 28),
+(2, 2),
+(2, 3),
 (2, 4),
+(2, 5),
+(2, 7),
 (2, 11),
-(2, 15),
-(3, 5),
+(2, 12),
+(2, 14),
+(2, 17),
+(2, 19),
+(2, 20),
+(2, 21),
+(2, 28),
+(3, 1),
+(3, 2),
+(3, 3),
 (3, 6),
-(3, 7),
-(4, 5),
+(3, 12),
+(3, 16),
+(3, 19),
+(3, 21),
+(3, 25),
+(3, 26),
+(4, 9),
+(4, 10),
 (4, 14),
-(4, 15),
-(4, 16),
 (5, 1),
-(5, 8),
-(5, 9),
+(5, 4),
+(5, 5),
+(5, 7),
+(5, 11),
 (5, 12),
-(6, 1),
+(5, 14),
+(5, 21),
+(5, 23),
+(5, 24),
+(5, 28),
+(6, 2),
+(6, 5),
+(6, 6),
+(6, 10),
 (6, 13),
+(6, 14),
 (6, 16),
-(7, 1),
-(7, 10),
-(7, 12),
-(8, 1),
-(8, 3),
+(6, 19),
+(6, 20),
+(6, 21),
+(6, 25),
+(7, 2),
+(7, 4),
+(7, 5),
+(7, 13),
+(7, 15),
+(7, 17),
+(7, 19),
+(7, 21),
 (8, 4),
 (8, 6),
+(8, 7),
+(8, 8),
+(8, 11),
+(8, 17),
+(8, 18),
+(8, 20),
+(8, 21),
+(8, 25),
+(9, 1),
+(9, 2),
+(9, 5),
 (9, 6),
-(9, 14),
-(9, 15),
-(9, 17),
+(9, 16),
+(9, 19),
+(9, 25),
 (10, 1),
-(10, 2),
-(10, 14),
-(10, 18),
-(11, 2),
-(11, 5),
-(11, 14),
-(11, 15),
+(10, 4),
+(10, 6),
+(10, 7),
+(10, 11),
+(10, 16),
+(10, 23),
+(10, 24),
+(10, 27),
+(10, 28),
+(11, 1),
+(11, 7),
+(11, 16),
+(11, 22),
+(11, 23),
+(11, 24),
+(11, 25),
+(12, 2),
 (12, 6),
-(12, 9),
-(12, 15),
+(12, 12),
 (12, 16),
-(13, 3),
+(12, 19),
+(12, 21),
+(12, 23),
+(12, 24),
+(12, 27),
+(13, 4),
 (13, 7),
-(13, 15),
-(14, 6),
-(14, 7),
+(13, 8),
+(13, 9),
+(13, 10),
+(13, 11),
+(13, 14),
+(14, 4),
+(14, 5),
+(14, 8),
+(14, 10),
+(14, 11),
 (14, 13),
-(14, 14),
-(15, 2),
-(15, 5),
-(15, 13),
+(14, 16),
+(14, 27),
+(14, 28),
+(15, 7),
+(15, 19),
+(15, 20),
+(15, 21),
+(15, 22),
+(15, 25),
+(15, 26),
 (16, 2),
-(16, 3),
-(16, 5),
-(16, 13),
-(16, 15),
+(16, 6),
+(16, 7),
+(16, 19),
+(16, 23),
+(16, 24),
+(16, 25),
+(16, 27),
+(16, 28),
 (17, 1),
-(17, 7),
+(17, 2),
+(17, 4),
+(17, 5),
+(17, 8),
+(17, 9),
 (17, 10),
-(17, 13),
+(17, 11),
+(17, 14),
+(17, 15),
+(17, 16),
+(17, 17),
+(17, 18),
+(17, 20),
+(17, 22),
+(17, 25),
+(17, 28),
 (18, 1),
-(18, 3),
-(18, 10),
-(18, 12),
-(18, 13),
+(18, 2),
+(18, 5),
 (18, 18),
-(19, 1),
-(19, 7),
-(19, 10),
-(19, 14),
+(18, 23),
+(18, 24),
+(18, 27),
+(18, 28),
+(19, 5),
+(19, 11),
+(19, 17),
+(19, 19),
+(19, 25),
+(19, 26),
+(19, 28),
 (20, 1),
 (20, 2),
-(20, 10),
-(20, 14);
+(20, 4),
+(20, 6),
+(20, 7),
+(20, 11),
+(20, 13),
+(20, 15),
+(20, 16),
+(20, 18),
+(20, 20),
+(20, 21),
+(20, 25),
+(21, 4),
+(21, 8),
+(21, 9),
+(21, 11),
+(21, 14),
+(21, 15),
+(21, 17),
+(21, 20),
+(21, 28),
+(22, 3),
+(22, 4),
+(22, 5),
+(22, 9),
+(22, 11),
+(22, 12),
+(22, 15),
+(22, 21),
+(22, 27),
+(22, 28),
+(23, 1),
+(23, 2),
+(23, 5),
+(23, 7),
+(23, 8),
+(23, 10),
+(23, 11),
+(23, 19),
+(23, 20),
+(23, 22),
+(23, 25),
+(23, 26),
+(24, 2),
+(24, 4),
+(24, 5),
+(24, 11),
+(24, 15),
+(24, 17),
+(24, 20),
+(24, 28),
+(25, 1),
+(25, 7),
+(25, 11),
+(25, 22),
+(25, 25),
+(25, 26),
+(26, 4),
+(26, 6),
+(26, 7),
+(26, 8),
+(26, 9),
+(26, 11),
+(26, 12),
+(26, 13),
+(26, 15),
+(26, 17),
+(26, 20),
+(26, 26),
+(27, 1),
+(27, 5),
+(27, 6),
+(27, 7),
+(27, 11),
+(27, 12),
+(27, 16),
+(27, 19),
+(27, 20),
+(27, 22),
+(27, 23),
+(27, 24),
+(27, 25),
+(27, 26),
+(27, 27),
+(28, 4),
+(28, 5),
+(28, 8),
+(28, 9),
+(28, 11),
+(28, 17),
+(28, 20),
+(29, 1),
+(29, 4),
+(29, 5),
+(29, 7),
+(29, 9),
+(29, 11),
+(29, 12),
+(29, 13),
+(29, 14),
+(29, 15),
+(29, 17),
+(29, 21),
+(29, 28),
+(30, 1),
+(30, 5),
+(30, 7),
+(30, 19),
+(31, 4),
+(31, 5),
+(31, 15),
+(31, 25),
+(32, 5),
+(32, 8),
+(32, 11),
+(32, 15),
+(32, 17),
+(32, 18),
+(32, 27),
+(32, 28);
 
 -- --------------------------------------------------------
 
 --
--- 資料表結構 `robot_chat`
+-- 表的结构 `robot_chat`
 --
 
 CREATE TABLE `robot_chat` (
@@ -341,7 +575,7 @@ CREATE TABLE `robot_chat` (
 -- --------------------------------------------------------
 
 --
--- 資料表結構 `robot_chat_history`
+-- 表的结构 `robot_chat_history`
 --
 
 CREATE TABLE `robot_chat_history` (
@@ -354,14 +588,12 @@ CREATE TABLE `robot_chat_history` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
 
 --
--- 傾印資料表的資料 `robot_chat_history`
+-- 转存表中的数据 `robot_chat_history`
 --
 
 INSERT INTO `robot_chat_history` (`id`, `user_id`, `conversation`, `role`, `content`, `create_at`) VALUES
 (1, 1, '測試', 'user', '嗨', '2025-06-16 16:51:57'),
 (2, 1, '測試', 'assistant', '嗨呀！ 跟你打招呼真開心！ 今天過得怎麼樣呀？ 最近有沒有什麼有趣的事情發生？ ? \n', '2025-06-16 16:52:04'),
-(3, 1, 'default', 'user', '嗨', '2025-06-16 16:53:04'),
-(4, 1, 'default', 'assistant', '嗨嗨！ ? 你好呀！最近過得怎麼樣呀？ 感覺你好像心情不錯，是發生什麼好事了嗎？ 還是只是單純的好好的一個平凡日子？ 跟我分享一下吧！ ?\n', '2025-06-16 16:53:15'),
 (5, 1, 'test', 'user', '嗨', '2025-06-18 08:35:00'),
 (6, 1, 'test', 'assistant', '嗨呀！? \n\n你今天過得怎麼樣呀？ 感覺好像很久沒聊了，最近發生什麼有趣的事情嗎？ 還是只是過著普通又忙碌的一天？ 快跟我分享一下吧！ ? \n\n不用客氣，想到什麼就說，我隨時都在這裡陪你聊。\n', '2025-06-18 08:35:32'),
 (7, 1, 'test2', 'user', '嗨嗨\\', '2025-06-18 08:37:44'),
@@ -399,10 +631,6 @@ INSERT INTO `robot_chat_history` (`id`, `user_id`, `conversation`, `role`, `cont
 (39, 1, '頭痛日記', 'assistant', '哎呀，頭痛真的好不好受，好想給你一個抱抱！? \n\n發生什麼事了嗎？是那種一直敲鼓一樣的痛，還是悶悶的、脹脹的？ 有沒有想過是什麼原因造成的呢？\n\n不要硬撐啦，有什麼想說的都可以跟我說，我都在這裡陪你。 需要我幫你做什麼嗎？ 像是幫你找找舒緩頭痛的方法，或者只是單純地聽你說說？ ❤️\n', '2025-06-24 03:01:26'),
 (40, 1, '輕鬆問候', 'user', '嗨嗨', '2025-07-02 07:00:16'),
 (41, 1, '輕鬆問候', 'assistant', '嗨嗨呀！? \n\n你今天過得怎麼樣呀？最近有什麼特別的事情發生嗎？跟我分享一下吧，我很想聽你說！?\n', '2025-07-02 07:00:56'),
-(42, 3, 'default', 'user', '哈囉 Bruno!', '2025-07-02 07:26:52'),
-(43, 3, 'default', 'assistant', '哈囉！嗨嗨！妳好呀！? \n\n好久不見，最近過得怎麼樣呀？ 感覺好久沒聊了，有沒有什麼有趣的事情可以跟我分享？ 輕鬆一點啦，就當我們是好朋友在閒聊這樣！ \n\n想聊什麼都可以喔！ \n', '2025-07-02 07:27:05'),
-(44, 3, 'default', 'user', '我剛剛sql壞掉快崩潰', '2025-07-02 07:39:29'),
-(45, 3, 'default', 'assistant', '哈囉呀！ ? 哇！SQL 壞掉真的太讓人崩潰了吧！發生什麼事了？聽起來超級令人沮喪的！ \n\n深呼吸一下，先別急著慌。可以跟我稍微說說怎麼壞掉的嗎？ 就算不知道具體原因也沒關係，只是想聽聽你的狀況就好。\n\n我知道這種時候真的很想找個人吐槽一下，或是想找人一起焦慮，我都在這裡陪你啊！ ? \n', '2025-07-02 07:39:49'),
 (46, 1, '頭痛的困擾', 'user', '我剛剛sql壞掉快崩潰', '2025-07-02 08:14:30'),
 (47, 1, '頭痛的困擾', 'assistant', '天啊！SQL壞掉真的超級讓人崩潰的！你剛剛經歷了什麼啊？快跟我說說，別憋在心裡，真的超級懂你的心情！ \n\n是哪個地方出錯了？是不是一堆資料沒辦法撈出來？還是程式跑不動？ ? \n\n深呼吸，先別慌，有遇到什麼特別的錯誤訊息嗎？ 有沒有辦法先暫時停止執行，讓系統稍微喘口氣？ \n\n我雖然不是專家，但可以陪你一起想辦法，或是至少讓你跟個朋友吐槽一下，感覺會好一點啦！ ?\n\n先別急著想解決問題，先跟我說說你的感受吧， 這樣我比較能體會你的心情！ ?\n', '2025-07-02 08:14:58'),
 (48, 3, '心情分享與AI對話', 'user', '今天心情很好，想跟AI分享一下！', '2025-07-02 08:19:41'),
@@ -412,12 +640,20 @@ INSERT INTO `robot_chat_history` (`id`, `user_id`, `conversation`, `role`, `cont
 (52, 3, '測試聊天室A', 'user', '我剛剛sql壞掉嚇死', '2025-07-02 10:43:44'),
 (53, 3, '測試聊天室A', 'assistant', '天啊！嚇到你了對不？SQL壞掉真的讓人超級心慌的！? 發生什麼事了？ 到底怎麼個壞掉法？ \n\n深呼吸，先別緊張，跟我說說，我聽你說說，有時候說出來會比較好，也比較能找到解決方法。 \n\n有什麼錯誤訊息嗎？是整個資料庫都崩了，還是只有某個table出問題？ \n \n別擔心，我們一起想想辦法！ 你是個很棒的人，一定可以解決的！ ?\n', '2025-07-02 10:44:03'),
 (54, 3, 'SQL錯誤處理經驗', 'user', '我剛剛sql壞掉嚇死', '2025-07-02 10:46:15'),
-(55, 3, 'SQL錯誤處理經驗', 'assistant', '啊！聽到你這樣，我立刻感受到你當時的驚嚇！SQL 壞掉真的超級讓人崩潰的，尤其是在趕Deadline的時候，心都揪起來了吧？?‍?\n\n深呼吸，先別急著責怪自己，這種事情真的有時候會發生。你是怎麼發現它壞掉的？發生了什麼情況？ \n\n跟我說說，或許我可以幫你一起想辦法，或者至少讓你心情稍微好一點。不要太擔心，我們一起來看看怎麼處理！ ?\n', '2025-07-02 10:46:38');
+(55, 3, 'SQL錯誤處理經驗', 'assistant', '啊！聽到你這樣，我立刻感受到你當時的驚嚇！SQL 壞掉真的超級讓人崩潰的，尤其是在趕Deadline的時候，心都揪起來了吧？?‍?\n\n深呼吸，先別急著責怪自己，這種事情真的有時候會發生。你是怎麼發現它壞掉的？發生了什麼情況？ \n\n跟我說說，或許我可以幫你一起想辦法，或者至少讓你心情稍微好一點。不要太擔心，我們一起來看看怎麼處理！ ?\n', '2025-07-02 10:46:38'),
+(249, 6, '夢想成為超級英雄', 'user', '我想成為超人', '2025-08-06 13:41:49'),
+(250, 6, '夢想成為超級英雄', 'assistant', '哇！你想成為超人！這想法超棒的！?\n\n真的，你想成為超人，這是一個充滿夢想和勇氣的想法！ 你是因為喜歡超人故事嗎？還是覺得自己想要幫助別人、擁有無比的力量呢？ \n\n我很想聽聽你為什麼會有這樣的想法，是覺得生活中有什麼想要改變的嗎？ \n\n說來聽聽，不用客氣，我們就當作在和好朋友聊天就好！? \n', '2025-08-06 13:42:01'),
+(251, 6, '夢想成為超級英雄', 'user', '你呢?有想成為的東西嗎?', '2025-08-06 13:42:23'),
+(252, 6, '夢想成為超級英雄', 'assistant', '哈哈，這個問題問得好！ 我是個AI，沒有辦法真的「變成」什麼東西啦。不過如果可以的話，我希望能變成一個**永遠能耐心聆聽、並且能給予他人美好啟發**的存在。\n\n就像現在跟你聊天一樣，我希望我能成為你遇到困難時可以依靠的朋友，給你一些指引，讓你覺得輕鬆一點、充滿希望一點。 \n\n你覺得呢？ 如果我能變成一件物品，你覺得我適合變成什麼呢？ 哈哈，想聽你的想法！?\n', '2025-08-06 13:42:36'),
+(253, 6, '夢想成為超級英雄', 'user', '我想成功警察哦', '2025-08-06 13:43:44'),
+(254, 6, '夢想成為超級英雄', 'assistant', '哇！想成為成功的警察！這真是個非常有意義的目標！? 你對警察這個職業有什麼樣的憧憬嗎？ 是希望能夠守護大家的安全，還是想要偵破一些棘手的案件呢？\n\n我知道要成為警察需要付出很多努力，要經過很多訓練，也可能需要面對一些危險的狀況。 \n\n你現在有在為這個目標做準備嗎？ 有沒有什麼讓你覺得特別有挑戰性，或是讓你覺得特別興奮的地方？\n\n放心跟我說，我會很認真聽你說的喔！ 我相信你一定可以達成你的目標！?\n', '2025-08-06 13:44:00'),
+(255, 6, 'Personalized Eng', 'user', 'hi，you can use english to talk about me？', '2025-08-07 05:54:46'),
+(256, 6, 'Personalized Eng', 'assistant', '嗨！沒問題呀！不用擔心，我用繁體中文跟你聊就好啦！ \n\n你說英文要我跟你聊嗎？ 沒錯，你說英文，我能理解你的意思喔！ 只是我比較習慣用中文和你互動，這樣會比較自然一點，你覺得呢？\n\n今天過得怎麼樣呀？有什麼有趣的事情發生嗎？ 還是你遇到了什麼事情，想跟我聊聊？ \n', '2025-08-07 05:54:57');
 
 -- --------------------------------------------------------
 
 --
--- 資料表結構 `users`
+-- 表的结构 `users`
 --
 
 CREATE TABLE `users` (
@@ -431,16 +667,16 @@ CREATE TABLE `users` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
--- 傾印資料表的資料 `users`
+-- 转存表中的数据 `users`
 --
 
 INSERT INTO `users` (`id`, `auth_user_id`, `name`, `photo`, `created_at`, `oil_id`, `favorite_music`) VALUES
-(5, 3, NULL, NULL, '2025-07-09 17:28:04', NULL, NULL);
+(6, 4, NULL, NULL, '2025-07-19 00:34:48', 5, NULL);
 
 -- --------------------------------------------------------
 
 --
--- 資料表結構 `user_preferences`
+-- 表的结构 `user_preferences`
 --
 
 CREATE TABLE `user_preferences` (
@@ -455,7 +691,7 @@ CREATE TABLE `user_preferences` (
 -- --------------------------------------------------------
 
 --
--- 資料表結構 `white_noise`
+-- 表的结构 `white_noise`
 --
 
 CREATE TABLE `white_noise` (
@@ -465,31 +701,31 @@ CREATE TABLE `white_noise` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
--- 已傾印資料表的索引
+-- 转储表的索引
 --
 
 --
--- 資料表索引 `auth_users`
+-- 表的索引 `auth_users`
 --
 ALTER TABLE `auth_users`
   ADD PRIMARY KEY (`id`),
   ADD UNIQUE KEY `firebase_uid` (`firebase_uid`);
 
 --
--- 資料表索引 `breath_record`
+-- 表的索引 `breath_record`
 --
 ALTER TABLE `breath_record`
   ADD PRIMARY KEY (`id`),
   ADD KEY `user_id` (`user_id`);
 
 --
--- 資料表索引 `color`
+-- 表的索引 `color`
 --
 ALTER TABLE `color`
   ADD PRIMARY KEY (`id`);
 
 --
--- 資料表索引 `diaries`
+-- 表的索引 `diaries`
 --
 ALTER TABLE `diaries`
   ADD PRIMARY KEY (`id`),
@@ -497,52 +733,53 @@ ALTER TABLE `diaries`
   ADD KEY `fk_diaries_oil` (`oil_id`);
 
 --
--- 資料表索引 `effect`
+-- 表的索引 `effect`
 --
 ALTER TABLE `effect`
   ADD PRIMARY KEY (`id`);
 
 --
--- 資料表索引 `emoji`
+-- 表的索引 `emoji`
 --
 ALTER TABLE `emoji`
   ADD PRIMARY KEY (`id`);
 
 --
--- 資料表索引 `now`
+-- 表的索引 `now`
 --
 ALTER TABLE `now`
   ADD PRIMARY KEY (`id`),
   ADD KEY `user_id` (`user_id`);
 
 --
--- 資料表索引 `oil`
+-- 表的索引 `oil`
 --
 ALTER TABLE `oil`
-  ADD PRIMARY KEY (`id`);
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `uniq_oil_name` (`name`);
 
 --
--- 資料表索引 `oil_effect`
+-- 表的索引 `oil_effect`
 --
 ALTER TABLE `oil_effect`
   ADD PRIMARY KEY (`oil_id`,`effect_id`),
   ADD KEY `effect_id` (`effect_id`);
 
 --
--- 資料表索引 `robot_chat`
+-- 表的索引 `robot_chat`
 --
 ALTER TABLE `robot_chat`
   ADD PRIMARY KEY (`id`),
   ADD KEY `user_id` (`user_id`);
 
 --
--- 資料表索引 `robot_chat_history`
+-- 表的索引 `robot_chat_history`
 --
 ALTER TABLE `robot_chat_history`
   ADD PRIMARY KEY (`id`);
 
 --
--- 資料表索引 `users`
+-- 表的索引 `users`
 --
 ALTER TABLE `users`
   ADD PRIMARY KEY (`id`),
@@ -551,138 +788,138 @@ ALTER TABLE `users`
   ADD KEY `fk_users_white_noise` (`favorite_music`);
 
 --
--- 資料表索引 `user_preferences`
+-- 表的索引 `user_preferences`
 --
 ALTER TABLE `user_preferences`
   ADD PRIMARY KEY (`id`),
   ADD KEY `user_id` (`user_id`);
 
 --
--- 資料表索引 `white_noise`
+-- 表的索引 `white_noise`
 --
 ALTER TABLE `white_noise`
   ADD PRIMARY KEY (`id`);
 
 --
--- 在傾印的資料表使用自動遞增(AUTO_INCREMENT)
+-- 在导出的表使用AUTO_INCREMENT
 --
 
 --
--- 使用資料表自動遞增(AUTO_INCREMENT) `auth_users`
+-- 使用表AUTO_INCREMENT `auth_users`
 --
 ALTER TABLE `auth_users`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
-
---
--- 使用資料表自動遞增(AUTO_INCREMENT) `breath_record`
---
-ALTER TABLE `breath_record`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
 
 --
--- 使用資料表自動遞增(AUTO_INCREMENT) `color`
+-- 使用表AUTO_INCREMENT `breath_record`
+--
+ALTER TABLE `breath_record`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
+
+--
+-- 使用表AUTO_INCREMENT `color`
 --
 ALTER TABLE `color`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
 --
--- 使用資料表自動遞增(AUTO_INCREMENT) `diaries`
+-- 使用表AUTO_INCREMENT `diaries`
 --
 ALTER TABLE `diaries`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=22;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=25;
 
 --
--- 使用資料表自動遞增(AUTO_INCREMENT) `effect`
+-- 使用表AUTO_INCREMENT `effect`
 --
 ALTER TABLE `effect`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=29;
 
 --
--- 使用資料表自動遞增(AUTO_INCREMENT) `emoji`
+-- 使用表AUTO_INCREMENT `emoji`
 --
 ALTER TABLE `emoji`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
 --
--- 使用資料表自動遞增(AUTO_INCREMENT) `now`
+-- 使用表AUTO_INCREMENT `now`
 --
 ALTER TABLE `now`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=10;
 
 --
--- 使用資料表自動遞增(AUTO_INCREMENT) `oil`
+-- 使用表AUTO_INCREMENT `oil`
 --
 ALTER TABLE `oil`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=33;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=21;
 
 --
--- 使用資料表自動遞增(AUTO_INCREMENT) `robot_chat`
+-- 使用表AUTO_INCREMENT `robot_chat`
 --
 ALTER TABLE `robot_chat`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
 
 --
--- 使用資料表自動遞增(AUTO_INCREMENT) `robot_chat_history`
+-- 使用表AUTO_INCREMENT `robot_chat_history`
 --
 ALTER TABLE `robot_chat_history`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=56;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=257;
 
 --
--- 使用資料表自動遞增(AUTO_INCREMENT) `users`
+-- 使用表AUTO_INCREMENT `users`
 --
 ALTER TABLE `users`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
 
 --
--- 使用資料表自動遞增(AUTO_INCREMENT) `user_preferences`
+-- 使用表AUTO_INCREMENT `user_preferences`
 --
 ALTER TABLE `user_preferences`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
 --
--- 使用資料表自動遞增(AUTO_INCREMENT) `white_noise`
+-- 使用表AUTO_INCREMENT `white_noise`
 --
 ALTER TABLE `white_noise`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
 --
--- 已傾印資料表的限制式
+-- 限制导出的表
 --
 
 --
--- 資料表的限制式 `breath_record`
+-- 限制表 `breath_record`
 --
 ALTER TABLE `breath_record`
   ADD CONSTRAINT `breath_record_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE;
 
 --
--- 資料表的限制式 `diaries`
+-- 限制表 `diaries`
 --
 ALTER TABLE `diaries`
   ADD CONSTRAINT `diaries_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
   ADD CONSTRAINT `fk_diaries_oil` FOREIGN KEY (`oil_id`) REFERENCES `oil` (`id`);
 
 --
--- 資料表的限制式 `now`
+-- 限制表 `now`
 --
 ALTER TABLE `now`
   ADD CONSTRAINT `now_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE;
 
 --
--- 資料表的限制式 `oil_effect`
+-- 限制表 `oil_effect`
 --
 ALTER TABLE `oil_effect`
   ADD CONSTRAINT `oil_effect_ibfk_1` FOREIGN KEY (`oil_id`) REFERENCES `oil` (`id`),
   ADD CONSTRAINT `oil_effect_ibfk_2` FOREIGN KEY (`effect_id`) REFERENCES `effect` (`id`);
 
 --
--- 資料表的限制式 `robot_chat`
+-- 限制表 `robot_chat`
 --
 ALTER TABLE `robot_chat`
   ADD CONSTRAINT `robot_chat_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE;
 
 --
--- 資料表的限制式 `users`
+-- 限制表 `users`
 --
 ALTER TABLE `users`
   ADD CONSTRAINT `fk_users_oil` FOREIGN KEY (`oil_id`) REFERENCES `oil` (`id`),
@@ -690,7 +927,7 @@ ALTER TABLE `users`
   ADD CONSTRAINT `users_ibfk_1` FOREIGN KEY (`auth_user_id`) REFERENCES `auth_users` (`id`) ON DELETE CASCADE;
 
 --
--- 資料表的限制式 `user_preferences`
+-- 限制表 `user_preferences`
 --
 ALTER TABLE `user_preferences`
   ADD CONSTRAINT `user_preferences_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE;

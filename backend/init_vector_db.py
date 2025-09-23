@@ -4,12 +4,10 @@ import requests
 import chromadb
 
 # ✅ 設定向量資料庫儲存路徑
-DB_DIR = r"d:/大四專題/oil/oilmodule/backend/chroma_db"
+DB_DIR = r"C:\Capstone_Project\demosmaily\demosmaily\backend\chroma_db"
 os.makedirs(DB_DIR, exist_ok=True)
-
 # ✅ PersistentClient（新版ChromaDB推薦）
 client = chromadb.PersistentClient(path=DB_DIR)
-
 # ✅ 刪除舊的 collection（如果存在）
 try:
     client.delete_collection(name="essential_oils")

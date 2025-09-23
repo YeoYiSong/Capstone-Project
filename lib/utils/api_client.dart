@@ -411,7 +411,11 @@ class ApiClient {
     }
   }
 
+<<<<<<< HEAD
   Stream<String> chat(String message) async* {
+=======
+  Stream<String> chat(String message, String conversation) async* {
+>>>>>>> d1ff696678951b3ed1799dfa6209ce0a6a2d3254
     final userId = await getUserId();
     if (userId == null) {
       developer.log('No user logged in for chat', name: 'ApiClient');
@@ -421,7 +425,15 @@ class ApiClient {
     final request =
         http.Request('POST', Uri.parse('${getBaseUrl()}/chat'))
           ..headers['Content-Type'] = 'application/json'
+<<<<<<< HEAD
           ..body = jsonEncode({'message': message, 'user_id': userId});
+=======
+          ..body = jsonEncode({
+            'message': message,
+            'user_id': userId,
+            'conversation': conversation,
+          });
+>>>>>>> d1ff696678951b3ed1799dfa6209ce0a6a2d3254
 
     try {
       final streamedResponse = await request.send();
@@ -445,6 +457,51 @@ class ApiClient {
     } catch (e) {
       developer.log('Error in chat stream: $e', name: 'ApiClient', error: e);
       throw Exception('傳送聊天訊息失敗：$e');
+<<<<<<< HEAD
+=======
+    }
+  }
+
+  // 在 ApiClient 裡加上英文聊天串流（和 chat 一樣，但打 /chatEN）
+  Stream<String> chatEN(String message, String conversation) async* {
+    final userId = await getUserId();
+    if (userId == null) {
+      developer.log('No user logged in for chatEN', name: 'ApiClient');
+      throw Exception('無法傳送英文聊天訊息：用戶未登入');
+    }
+
+    final request =
+        http.Request('POST', Uri.parse('${getBaseUrl()}/chatEN'))
+          ..headers['Content-Type'] = 'application/json'
+          ..body = jsonEncode({
+            'message': message,
+            'user_id': userId,
+            'conversation': conversation,
+          });
+
+    try {
+      final streamedResponse = await request.send();
+      if (streamedResponse.statusCode == 200) {
+        final stream = streamedResponse.stream.transform(utf8.decoder);
+        await for (final chunk in stream) {
+          if (kDebugMode) {
+            print('[chunk EN] $chunk');
+          }
+          yield chunk;
+        }
+        developer.log('ChatEN streamed successfully', name: 'ApiClient');
+      } else {
+        final errorBody = await streamedResponse.stream.bytesToString();
+        developer.log(
+          'chatEN failed: $errorBody (Status: ${streamedResponse.statusCode})',
+          name: 'ApiClient',
+        );
+        throw Exception('傳送英文聊天訊息失敗：$errorBody');
+      }
+    } catch (e) {
+      developer.log('Error in chatEN stream: $e', name: 'ApiClient', error: e);
+      throw Exception('傳送英文聊天訊息失敗：$e');
+>>>>>>> d1ff696678951b3ed1799dfa6209ce0a6a2d3254
     }
   }
 
@@ -579,6 +636,55 @@ class ApiClient {
     }
   }
 
+<<<<<<< HEAD
+=======
+  /// 搜尋日記與瞬間 (/search_diary_entries)
+  Future<List<Map<String, dynamic>>> searchDiaryEntries({
+    required String query,
+    String? userId,
+  }) async {
+    if (query.trim().isEmpty) {
+      throw ArgumentError('query 不可為空字串');
+    }
+
+    // 優先使用傳入的 userId，沒有的話就呼叫 getUserId()
+    String? finalUserId = userId;
+    if (finalUserId == null || finalUserId.isEmpty) {
+      finalUserId = await getUserId();
+    }
+
+    final baseUrl = getBaseUrl();
+    final uri = Uri.parse('$baseUrl/search_diary_entries').replace(
+      queryParameters: {
+        'query': query.trim(),
+        if (finalUserId != null && finalUserId.isNotEmpty)
+          'user_id': finalUserId,
+      },
+    );
+
+    try {
+      final resp = await http.get(
+        uri,
+        headers: {'Content-Type': 'application/json'},
+      );
+      if (resp.statusCode == 200) {
+        final data = jsonDecode(resp.body);
+        if (data is List) {
+          return data
+              .map<Map<String, dynamic>>((e) => Map<String, dynamic>.from(e))
+              .toList();
+        } else {
+          throw Exception('回傳格式錯誤: $data');
+        }
+      } else {
+        throw Exception('搜尋失敗 (HTTP ${resp.statusCode}): ${resp.body}');
+      }
+    } catch (e) {
+      throw Exception('searchDiaryEntries 失敗: $e');
+    }
+  }
+
+>>>>>>> d1ff696678951b3ed1799dfa6209ce0a6a2d3254
   Future<void> renameConversation(String oldName, String newName) async {
     final userId = await getUserId();
     if (userId == null) throw Exception('用戶未登入');
@@ -616,7 +722,11 @@ class ApiClient {
   Future<void> deleteConversation(String conversation) async {
     final userId = await getUserId();
     if (userId == null) throw Exception('用戶未登入');
+<<<<<<< HEAD
     if (conversation == 'default') {
+=======
+    if (conversation == 'untitled_') {
+>>>>>>> d1ff696678951b3ed1799dfa6209ce0a6a2d3254
       throw Exception('無法刪除預設對話');
     }
 
@@ -646,7 +756,11 @@ class ApiClient {
     }
   }
 
+<<<<<<< HEAD
   Future<Map<String, dynamic>> finalizeConversation() async {
+=======
+  Future<Map<String, dynamic>> finalizeConversation(String conversation) async {
+>>>>>>> d1ff696678951b3ed1799dfa6209ce0a6a2d3254
     final userId = await getUserId();
     if (userId == null) throw Exception('用戶未登入');
 
@@ -654,7 +768,11 @@ class ApiClient {
       final response = await http.post(
         Uri.parse('${getBaseUrl()}/finalize'),
         headers: {'Content-Type': 'application/json'},
+<<<<<<< HEAD
         body: jsonEncode({'user_id': userId}),
+=======
+        body: jsonEncode({'user_id': userId, 'conversation': conversation}),
+>>>>>>> d1ff696678951b3ed1799dfa6209ce0a6a2d3254
       );
 
       if (response.statusCode == 200) {
@@ -709,6 +827,25 @@ class ApiClient {
     }
   }
 
+<<<<<<< HEAD
+=======
+  Future<List<dynamic>> getAllOils() async {
+    try {
+      final response = await http.get(
+        Uri.parse('${getBaseUrl()}/get_all_oils'),
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body) as List<dynamic>;
+      } else {
+        throw Exception('取得精油清單失敗：${response.body}');
+      }
+    } catch (e) {
+      throw Exception('取得精油清單錯誤：$e');
+    }
+  }
+
+>>>>>>> d1ff696678951b3ed1799dfa6209ce0a6a2d3254
   Future<Map<String, dynamic>> recommendTodayOil() async {
     final userId = await getUserId();
     if (userId == null) throw Exception('用戶未登入');

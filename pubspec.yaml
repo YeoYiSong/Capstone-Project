@@ -10,6 +10,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_svg: ^2.0.9  
   cupertino_icons: ^1.0.8
   url_launcher: ^6.0.9 
   google_fonts: ^6.2.1
@@ -30,6 +31,7 @@ dev_dependencies:
     sdk: flutter
   flutter_lints: ^5.0.0
   
+  
 
 flutter:
   uses-material-design: true
@@ -45,13 +47,38 @@ flutter:
     - assets/picture/setting.jpg
     - assets/icons/fb.png
     - assets/icons/google.png
+    - assets/icons/interface_loading_circle.svg
+    - assets/icons/interface_navigation_left_circle.svg
     - assets/breath/breathing_guide.mp4
     - assets/breath/intro.mp3
     - assets/breath/guide.mp3
     - assets/scenario_music/relaxing-smoothed-brown-noise.mp3
     - assets/scenario_music/soft-brown-noise-.mp3
     - assets/scenario_music/soothing-deep-noise-.mp3
+<<<<<<< HEAD
 
+=======
+    - assets/oils/1.jpg
+    - assets/oils/2.jpg
+    - assets/oils/3.jpg
+    - assets/oils/4.jpg
+    - assets/oils/5.jpg
+    - assets/oils/6.jpg
+    - assets/oils/7.jpg
+    - assets/oils/8.jpg
+    - assets/oils/9.jpg
+    - assets/oils/10.jpg
+    - assets/oils/11.jpg
+    - assets/oils/12.jpg
+    - assets/oils/13.jpg
+    - assets/oils/14.jpg
+    - assets/oils/15.jpg
+    - assets/oils/16.jpg
+    - assets/oils/17.jpg
+    - assets/oils/18.jpg
+    - assets/oils/19.jpg
+    - assets/oils/20.jpg
+>>>>>>> d1ff696678951b3ed1799dfa6209ce0a6a2d3254
   fonts:
     - family: PixelFont
       fonts:

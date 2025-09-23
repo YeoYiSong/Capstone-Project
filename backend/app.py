@@ -9,6 +9,10 @@ import requests
 import contextlib
 import chromadb
 import re
+<<<<<<< HEAD
+=======
+import uuid
+>>>>>>> d1ff696678951b3ed1799dfa6209ce0a6a2d3254
 from itertools import chain
 
 app = Flask(__name__)
@@ -469,6 +473,7 @@ def get_user_id():
 
 # ============ 取得/設定目前聊天室名稱 ============
 def get_current_name():
+<<<<<<< HEAD
     uid = get_user_id()
     key = f'current_conv_{uid}'
     if key not in session:
@@ -476,21 +481,29 @@ def get_current_name():
         session[key] = new_name
         session[f'ai_titled_{uid}'] = False  
     return session.get(key, 'default')
+=======
+    try:
+        return (request.json or {}).get('conversation', 'default')
+    except Exception:
+        return 'default'
+>>>>>>> d1ff696678951b3ed1799dfa6209ce0a6a2d3254
 
-def set_current_name(conv_name):
-    uid = get_user_id()
-    session[f'current_conv_{uid}'] = conv_name
 
 # ============ 取得/儲存當前聊天室訊息 ============
-def get_messages():
-    uid = get_user_id()
-    key = f'messages_{uid}_{get_current_name()}'
-    return session.setdefault(key, [])
-
-def save_messages(messages):
-    uid = get_user_id()
-    key = f'messages_{uid}_{get_current_name()}'
-    session[key] = messages
+def get_messages(user_id, conversation, limit=6):
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("""
+        SELECT role, content
+        FROM robot_chat_history
+        WHERE user_id = %s AND conversation = %s
+        ORDER BY create_at DESC
+        LIMIT %s
+    """, (user_id, conversation, limit))
+    messages = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return list(reversed(messages))
 
 # ============ 儲存單一訊息到資料庫 ============
 def save_message_to_db(user_id, conversation, role, content, create_at=None):
@@ -565,21 +578,66 @@ def ai_generate_title(first_message):
 @app.route('/switch', methods=['POST'])
 def switch_conversation():
     user_id = get_user_id()
+<<<<<<< HEAD
     name = request.json.get('conversation', '').strip() or 'default'
     session[f'ai_titled_{user_id}'] = not name.startswith('untitled_')
     set_current_name(name)
     key = f'messages_{user_id}_{name}'
     if key not in session:
         session[key] = []
+=======
+    name = request.json.get('conversation', '').strip() or f"untitled_{datetime.now().strftime('%H%M%S')}"
+>>>>>>> d1ff696678951b3ed1799dfa6209ce0a6a2d3254
     return jsonify({'status': 'switched', 'conversation': name})
 
 # ============ 重設目前聊天室內容 ============
 @app.route('/reset', methods=['POST'])
 def reset_conversation():
+    user_id = request.json.get('user_id')
+    conversation = request.json.get('conversation')
+    if not user_id or not conversation:
+        return jsonify({'error': 'Missing parameters'}), 400
+
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor()
+        query = "DELETE FROM robot_chat_history WHERE user_id = %s AND conversation = %s"
+        cursor.execute(query, (user_id, conversation))
+        conn.commit()
+        return jsonify({'status': 'cleared', 'conversation': conversation})
+    except Error as e:
+        return jsonify({'error': f'Database error: {e}'}), 500
+    finally:
+        cursor.close()
+        conn.close()
+
+
+# ============ 刪除聊天室 ============
+@app.route('/delete', methods=['POST'])
+def delete_conversation():
     user_id = get_user_id()
-    key = f'messages_{user_id}_{get_current_name()}'
-    session[key] = []
-    return jsonify({'status': 'cleared', 'conversation': get_current_name()})
+    if not user_id:
+        return jsonify({'error': 'Missing user_id'}), 400
+    conversation = request.json.get('conversation')
+    if not conversation or conversation == 'untitled_':
+        return jsonify({'error': 'Cannot delete untitled_ conversation'}), 400
+
+    conn = get_db_connection()
+    if conn is None:
+        return jsonify({'error': 'Database connection failed'}), 500
+
+    try:
+        cursor = conn.cursor()
+        query = "DELETE FROM robot_chat_history WHERE user_id = %s AND conversation = %s"
+        cursor.execute(query, (user_id, conversation))
+        conn.commit()
+        return jsonify({'status': 'deleted'}), 200
+    except Error as e:
+        return jsonify({'error': f'Failed to delete conversation: {e}'}), 500
+    finally:
+        cursor.close()
+        conn.close()
+
 
 # ============ 刪除聊天室 ============
 @app.route('/delete', methods=['POST'])
@@ -621,7 +679,11 @@ def list_conversations():
         sql = "SELECT DISTINCT conversation FROM robot_chat_history WHERE user_id=%s"
         cursor.execute(sql, (user_id,))
         conversations = [row[0] for row in cursor.fetchall()]
+<<<<<<< HEAD
         current = session.get(f'current_conv_{user_id}', 'default')
+=======
+        current = session.get(f'current_conv_{user_id}', 'untitled_')
+>>>>>>> d1ff696678951b3ed1799dfa6209ce0a6a2d3254
         if current not in conversations:
             conversations.append(current)
         return jsonify({
@@ -660,17 +722,17 @@ def get_history():
 
 
 # ============ 發送訊息/串流回覆 ============
-@app.route('/chat', methods=['POST'])
+@app.route('/chat', methods=['POST'], endpoint='chat_zh')
 def chat():
-    user_id = get_user_id()
+    user_id = request.json.get('user_id')
     user_message = request.json.get('message', '').strip()
-    conversation = get_current_name()
-    is_new_conv = conversation.startswith("untitled_")
-    ai_titled = session.get(f'ai_titled_{user_id}', False)
+    original_conversation = request.json.get('conversation')  # 接收前端送來的名稱
 
-    if not user_message:
-        return Response('', content_type='text/plain')
+    # 如果沒有傳 conversation，就給個未命名的
+    if not original_conversation:
+        original_conversation = 'untitled_' + str(uuid.uuid4())[:8]
 
+<<<<<<< HEAD
     messages = get_messages()
     if not messages:
         messages.append({
@@ -680,10 +742,39 @@ def chat():
                 '不用太正式，像平常朋友聊天一樣就好，溫暖、有共鳴，讓我覺得被理解就好。'
             )
         })
+=======
+    # --- Step 1: 從 session 中查詢 conversation 是否已經被改名過 ---
+    conversation = session.get(f'conv_name_map_{user_id}_{original_conversation}', original_conversation)
+>>>>>>> d1ff696678951b3ed1799dfa6209ce0a6a2d3254
 
-    messages.append({'role': 'user', 'content': user_message})
+    # --- Step 2: 檢查是否為第一次 AI 回應 ---
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT COUNT(*) FROM robot_chat_history WHERE user_id = %s AND conversation = %s AND role = 'assistant'",
+        (user_id, conversation)
+    )
+    has_ai_response = cursor.fetchone()[0] > 0
+    cursor.close()
+    conn.close()
+
+    should_rename = conversation.startswith("untitled_") and not has_ai_response
+    send_conv_name = None
+
+    if should_rename:
+        new_name = ai_generate_title(user_message)
+        update_conversation_name(user_id, conversation, new_name)
+
+        # 將原名與新名對應記起來（之後前端再送來 untitled_xxx 時能自動轉成新名）
+        session[f'conv_name_map_{user_id}_{conversation}'] = new_name
+
+        send_conv_name = new_name
+        conversation = new_name  # ⚠️ 更新為新名儲存訊息
+
+    # --- 儲存使用者訊息 ---
     save_message_to_db(user_id, conversation, 'user', user_message)
 
+<<<<<<< HEAD
     send_conv_name = None
     if is_new_conv and not ai_titled:
         title = ai_generate_title(user_message)
@@ -703,7 +794,15 @@ def chat():
         'messages': session_msgs,
         'stream': True
     }
+=======
+    # --- 撈取歷史訊息 ---
+    history = get_messages(user_id, conversation)
+    messages = [{'role': 'system', 'content': '你是一位親切、有耐心的朋友，請用繁體中文和我聊天。'
+                '不用太正式，像平常朋友聊天一樣就好，溫暖、有共鳴，讓我覺得被理解就好。'}] + history + [
+                   {'role': 'user', 'content': user_message}]
+>>>>>>> d1ff696678951b3ed1799dfa6209ce0a6a2d3254
 
+    payload = {'model': 'gemma3:12b', 'messages': messages, 'stream': True}
     full_response = {'value': ''}
 
     @stream_with_context
@@ -716,37 +815,186 @@ def chat():
                     try:
                         data = json.loads(line.decode('utf-8'))
                         chunk = data.get('message', {}).get('content', '')
-                    except json.JSONDecodeError:
+                    except:
                         chunk = '[解析錯誤]'
                     full_response['value'] += chunk
                     yield chunk
         except Exception as e:
-            yield f'[連線錯誤：{e}]'
+            yield f'[錯誤]: {e}'
 
         if full_response['value'].strip():
-            msgs = get_messages()
-            msgs.append({'role': 'assistant', 'content': full_response['value']})
-            save_messages(msgs)
             save_message_to_db(user_id, conversation, 'assistant', full_response['value'])
 
     if send_conv_name:
         def name_stream():
             yield f"CONVERSATION_NAME:{send_conv_name}\n"
+<<<<<<< HEAD
 
         return Response(stream_with_context(chain(name_stream(), generate())), content_type='text/plain')
     else:
         return Response(generate(), content_type='text/plain')
+=======
+        return Response(stream_with_context(chain(name_stream(), generate())), content_type='text/plain')
+    else:
+        return Response(generate(), content_type='text/plain')
+
+@app.route('/chatEN', methods=['POST'], endpoint='chat_en')#英文聊天
+def chat():
+    user_id = request.json.get('user_id')
+    user_message = request.json.get('message', '').strip()
+    original_conversation = request.json.get('conversation')  
+
+    # 如果沒有傳 conversation，就給個未命名的
+    if not original_conversation:
+        original_conversation = 'untitled_' + str(uuid.uuid4())[:8]
+
+    # --- Step 1: 從 session 中查詢 conversation 是否已經被改名過 ---
+    conversation = session.get(f'conv_name_map_{user_id}_{original_conversation}', original_conversation)
+
+    # --- Step 2: 檢查是否為第一次 AI 回應 ---
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT COUNT(*) FROM robot_chat_history WHERE user_id = %s AND conversation = %s AND role = 'assistant'",
+        (user_id, conversation)
+    )
+    has_ai_response = cursor.fetchone()[0] > 0
+    cursor.close()
+    conn.close()
+
+    should_rename = conversation.startswith("untitled_") and not has_ai_response
+    send_conv_name = None
+
+    if should_rename:
+        new_name = ai_generate_title_en(user_message)
+        update_conversation_name(user_id, conversation, new_name)
+
+        # 將原名與新名對應記起來（之後前端再送來 untitled_xxx 時能自動轉成新名）
+        session[f'conv_name_map_{user_id}_{conversation}'] = new_name
+
+        send_conv_name = new_name
+        conversation = new_name  # ⚠️ 更新為新名儲存訊息
+
+    # --- 儲存使用者訊息 ---
+    save_message_to_db(user_id, conversation, 'user', user_message)
+
+    # --- 撈取歷史訊息 ---
+    history = get_messages(user_id, conversation)
+    messages = [{'role': 'system', 'content': 'You are a kind and patient friend. It doesn’t need to be too formal, just like how friends normally talk—warm, understanding, and making me feel truly understood.'}] + history + [
+                   {'role': 'user', 'content': user_message}]
+
+    payload = {'model': 'gemma3:12b', 'messages': messages, 'stream': True}
+    full_response = {'value': ''}
+
+    @stream_with_context
+    def generate():
+        try:
+            with requests.post(OLLAMA_API_URL, json=payload, stream=True, timeout=180) as r:
+                for line in r.iter_lines():
+                    if not line:
+                        continue
+                    try:
+                        data = json.loads(line.decode('utf-8'))
+                        chunk = data.get('message', {}).get('content', '')
+                    except:
+                        chunk = '[解析錯誤]'
+                    full_response['value'] += chunk
+                    yield chunk
+        except Exception as e:
+            yield f'[錯誤]: {e}'
+
+        if full_response['value'].strip():
+            save_message_to_db(user_id, conversation, 'assistant', full_response['value'])
+
+    if send_conv_name:
+        def name_stream():
+            yield f"CONVERSATION_NAME:{send_conv_name}\n"
+        return Response(stream_with_context(chain(name_stream(), generate())), content_type='text/plain')
+    else:
+        return Response(generate(), content_type='text/plain')
+    
+def ai_generate_title_en(first_message: str) -> str:
+    payload = {
+        "model": "gemma3:12b",
+        "messages": [
+            {
+                "role": "system",
+                "content": (
+                    "You are a conversation title generator.\n"
+                    "Based on the following message, reply with ONLY a short clear title in **English**.\n"
+                    "Rules:\n"
+                    "- Must be between 8 and 16 characters.\n"
+                    "- Do not add punctuation, numbers, or symbols.\n"
+                    "- Do not ask questions or give explanations.\n"
+                    "- Just output the plain title text.\n"
+                    "Examples: Work Stress Chat, Weekend Reflections, Family Dinner Talk"
+                )
+            },
+            {
+                "role": "user",
+                "content": first_message
+            }
+        ],
+        "stream": False
+    }
+    try:
+        res = requests.post(OLLAMA_API_URL, json=payload, timeout=60)
+        data = res.json()
+        title = data.get("message", {}).get("content", "").strip().replace("\n", "")
+        return title[:16] if title else "Untitled Chat"
+    except Exception:
+        return "Untitled Chat"
+
+>>>>>>> d1ff696678951b3ed1799dfa6209ce0a6a2d3254
 
 # ============ 產生並儲存摘要 ============
 @app.route('/finalize', methods=['POST'])
+def is_summary_exists(user_id, conversation):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT COUNT(*) FROM robot_chat WHERE user_id = %s AND conversation = %s",
+        (user_id, conversation)
+    )
+    count = cursor.fetchone()[0]
+    cursor.close()
+    conn.close()
+    return count > 0
+def load_messages_for_summary(user_id, conversation, limit=10):
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("""
+        SELECT role, content
+        FROM robot_chat_history
+        WHERE user_id = %s AND conversation = %s
+        ORDER BY create_at DESC
+        LIMIT %s
+    """, (user_id, conversation, limit))
+    messages = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return list(reversed(messages))
+
 def finalize_conversation():
-    user_id = get_user_id()
-    messages = get_messages()
+    user_id = request.json.get('user_id')
+    conversation = request.json.get('conversation')
+
+    if not user_id or not conversation:
+        return jsonify({'status': 'missing_parameters'})
+
+    # ✅ 這一行是新增的，避免重複產生摘要
+    if is_summary_exists(user_id, conversation):
+        return jsonify({'status': 'already_finalized'})
+
+    messages = load_messages_for_summary(user_id, conversation, limit=10)
     if not messages:
         return jsonify({'status': 'no_messages'})
-    summary = generate_summary(messages)
-    save_summary_to_db(user_id, summary)
-    return jsonify({'status': 'summary_saved', 'summary': summary})
+
+    result = analyze_content_with_ai(
+        '\n'.join([f"{'你' if m['role']=='user' else 'AI'}：{m['content']}" for m in messages])
+    )
+    save_summary_to_db(user_id, result["summary"], result.get("themes", []), conversation)
+    return jsonify({'status': 'summary_saved', 'summary': result["summary"], 'themes': result.get("themes", [])})
 
 # ============ 呼叫 AI 產生摘要 ============
 def generate_summary(messages):
@@ -780,9 +1028,21 @@ def generate_summary(messages):
         return f"[摘要失敗：{e}]"
 
 # ============ 儲存摘要到資料庫 ============
+<<<<<<< HEAD
 def save_summary_to_db(user_id, summary):
     sql = "INSERT INTO robot_chat (user_id, summary, keywords, emotion_tag) VALUES (%s, %s, %s, %s)"
     val = (user_id, summary, '', '')
+=======
+def save_summary_to_db(user_id, summary, themes=None, conversation=None, emotion=None):
+    sql = "INSERT INTO robot_chat (user_id, summary, keywords, emotion_tag, conversation) VALUES (%s, %s, %s, %s, %s)"
+    val = (
+        user_id,
+        summary,
+        ', '.join(themes or []),
+        emotion or '',
+        conversation or ''
+    )
+>>>>>>> d1ff696678951b3ed1799dfa6209ce0a6a2d3254
     conn = get_db_connection()
     if conn is None:
         return
@@ -792,6 +1052,10 @@ def save_summary_to_db(user_id, summary):
             conn.commit()
     finally:
         conn.close()
+<<<<<<< HEAD
+=======
+
+>>>>>>> d1ff696678951b3ed1799dfa6209ce0a6a2d3254
 
 # --- 用 OLLAMA 取得文字向量 ---
 def embed_text(text):
@@ -929,6 +1193,76 @@ def analyze_today_all():
         "now_count": len(now_records),
         "has_diary": bool(diary)
     })
+def get_today_summary(user_id):
+    today_str = datetime.now().strftime('%Y-%m-%d')
+    conn = get_db_connection()
+    if conn is None:
+        return None
+
+    try:
+        cursor = conn.cursor(dictionary=True)
+
+        cursor.execute("""
+            SELECT id, note, joy, sadness, anger, positive, anxiety, exhaust
+            FROM now
+            WHERE DATE(create_at) = %s AND user_id = %s
+        """, (today_str, user_id))
+        now_records = cursor.fetchall()
+
+        cursor.execute("""
+            SELECT id, content, joy, sadness, anger, positive, anxiety, exhaust
+            FROM diaries
+            WHERE DATE(create_at) = %s AND user_id = %s
+            LIMIT 1
+        """, (today_str, user_id))
+        diary = cursor.fetchone()
+    finally:
+        conn.close()
+
+    if not now_records and not diary:
+        return None
+
+    all_text = ""
+    if diary:
+        all_text += (
+            f"【今日日記】\n內容：{diary['content']}\n"
+            f"情緒指標：喜悅：{diary['joy']}，悲傷：{diary['sadness']}，"
+            f"憤怒：{diary['anger']}，正向：{diary['positive']}，"
+            f"焦慮：{diary['anxiety']}，疲憊：{diary['exhaust']}\n\n"
+        )
+    for idx, rec in enumerate(now_records, start=1):
+        all_text += (
+            f"【即時紀錄{idx}】\n內容：{rec['note']}\n"
+            f"情緒指標：喜悅：{rec['joy']}，悲傷：{rec['sadness']}，"
+            f"憤怒：{rec['anger']}，正向：{rec['positive']}，"
+            f"焦慮：{rec['anxiety']}，疲憊：{rec['exhaust']}\n\n"
+        )
+
+    all_text += "請根據今天所有日記與即時紀錄內容、情緒數值，產生一段全日總結（100-150字），並列出具體主題。"
+
+    return analyze_content_with_ai(all_text)
+
+# 顯示所有精油清單
+# 顯示所有精油清單（改：用資料庫）
+@app.route('/get_all_oils', methods=['GET'])
+def get_all_oils():
+    conn = get_db_connection()
+    if conn is None:
+        return jsonify({'error': '資料庫連線失敗'}), 500
+    try:
+        cur = conn.cursor(dictionary=True)
+        cur.execute("""
+            SELECT id, name, price, meaning, effect
+            FROM oil
+            ORDER BY id
+        """)
+        rows = cur.fetchall()
+        return jsonify(rows)
+    except Exception as e:
+        return jsonify({"error": f"讀取精油資料失敗：{e}"}), 500
+    finally:
+        conn.close()
+
 
 # --- API: 精油推薦（用摘要或日記都可）---
 @app.route('/analyze', methods=['POST'])
@@ -956,7 +1290,7 @@ def analyze():
             "content": (
                 "你是一位芳療專家，根據下方日記內容和精油候選名單，"
                 "只能從候選名單選出最適合的一款精油，並嚴格按照如下 JSON 格式回覆："
-                "{\"oil\":\"精油名稱\",\"reason\":\"推薦理由（必須超過20字且不可留空）\"}。"
+                "{\"oil\":\"精油名稱\",\"reason\":\"推薦理由（必 須超過20字且不可留空）\"}。"
                 "不能創造名單外的精油，不能省略任何欄位，不能只給名稱，不可回覆其他說明或格式。\n"
                 f"候選精油：\n{candidates}"
             )
@@ -1016,29 +1350,50 @@ def recommend_today_oil():
     if not user_id:
         return jsonify({"error": "請帶上 user_id"}), 400
 
+<<<<<<< HEAD
     try:
         summary_json = analyze_today_all().json
         summary_text = summary_json.get('summary', '')
+=======
+    # 1) 取得今日摘要
+    try:
+        summary_json = get_today_summary(user_id)
+        if not summary_json:
+            return jsonify({"error": "今天沒有任何紀錄可供推薦"}), 400
+        summary_text = summary_json.get('summary', '').strip()
+>>>>>>> d1ff696678951b3ed1799dfa6209ce0a6a2d3254
         if not summary_text:
             return jsonify({"error": "找不到今日摘要", "raw": summary_json}), 400
     except Exception as e:
         return jsonify({"error": f"今日摘要失敗: {e}"}), 500
 
+<<<<<<< HEAD
+=======
+    # 2) 向量查詢取候選清單（top-3）
+>>>>>>> d1ff696678951b3ed1799dfa6209ce0a6a2d3254
     try:
         qvec = embed_text(summary_text)
         results = col.query(query_embeddings=[qvec], n_results=3)
         oil_docs = results['documents'][0]
+<<<<<<< HEAD
         oil_ids = results['ids'][0]
+=======
+>>>>>>> d1ff696678951b3ed1799dfa6209ce0a6a2d3254
         if not oil_docs:
             return jsonify({"error": "查無相關精油"}), 404
     except Exception as e:
         return jsonify({"error": f"向量查詢失敗: {e}"}), 500
 
+<<<<<<< HEAD
+=======
+    # 3) 準備候選文字給 AI 挑選
+>>>>>>> d1ff696678951b3ed1799dfa6209ce0a6a2d3254
     candidates = '\n'.join([f"{idx+1}. {oil_docs[idx]}" for idx in range(len(oil_docs))])
     messages = [
         {"role": "system", "content": (
             "你是一位芳療專家，只能從下列精油選出一款最適合的，格式如下："
             "{\"oil\":\"精油名稱\",\"reason\":\"推薦理由（>20字）\"}。\n"
+<<<<<<< HEAD
             f"候選精油：\n{candidates}")},
         {"role": "user", "content": f"日記內容：\n{summary_text}"}
     ]
@@ -1056,6 +1411,28 @@ def recommend_today_oil():
         }
     }
 
+=======
+            "不能回覆候選名單外的精油，不能省略欄位。\n"
+            f"候選精油：\n{candidates}"
+        )},
+        {"role": "user", "content": f"日記內容：\n{summary_text}"}
+    ]
+
+    payload = {
+        'model': 'gemma3:12b',
+        'messages': messages,
+        'stream': False,
+        'options': {
+            'num_gpu': 1,
+            'main_gpu': 0,
+            'low_vram': False,
+            'num_ctx': 8192,
+            'keep_alive': -1
+        }
+    }
+
+    # 4) 向 AI 要結果
+>>>>>>> d1ff696678951b3ed1799dfa6209ce0a6a2d3254
     try:
         resp = requests.post(OLLAMA_CHAT_URL, json=payload, timeout=180)
         content = resp.json().get("message", {}).get("content", "").strip()
@@ -1064,6 +1441,7 @@ def recommend_today_oil():
     except Exception as e:
         return jsonify({"error": f"AI推薦失敗: {e}"}), 500
 
+<<<<<<< HEAD
     oil_name = parsed.get("oil", "").strip()
     reason = parsed.get("reason", "")
     oil_desc = next((doc for doc in oil_docs if oil_name and doc.startswith(oil_name)), "")
@@ -1072,31 +1450,184 @@ def recommend_today_oil():
     if not reason:
         reason = "AI未正確給出推薦理由，請重新嘗試"
 
+=======
+    oil_name = (parsed.get("oil") or "").strip()
+    reason = (parsed.get("reason") or "").strip()
+
+    # 5) 嚴格檢查：AI 必須選在候選清單內的名稱
+    candidate_names = [doc.split('：', 1)[0] for doc in oil_docs]  # documents 形如「名稱：功效、功效…」
+    if not oil_name or oil_name not in candidate_names:
+        return jsonify({
+            "error": f"AI 回傳的精油不在候選名單內：{oil_name}",
+            "candidates": candidate_names
+        }), 400
+
+    # 6) 由 DB 查 id / price，並寫入 users.oil_id
+>>>>>>> d1ff696678951b3ed1799dfa6209ce0a6a2d3254
     try:
         conn = get_db_connection()
         if conn is None:
             return jsonify({"error": "資料庫連線失敗"}), 500
         cursor = conn.cursor(dictionary=True)
+<<<<<<< HEAD
         cursor.execute("SELECT id FROM oil WHERE name = %s", (oil_name,))
         row = cursor.fetchone()
         if not row:
             return jsonify({"error": f"資料庫查無精油名稱: {oil_name}"}), 400
         oil_id = row['id']
 
+=======
+
+        cursor.execute("SELECT id, price FROM oil WHERE name = %s", (oil_name,))
+        row = cursor.fetchone()
+        if not row:
+            return jsonify({"error": f"資料庫查無精油名稱: {oil_name}"}), 400
+
+        oil_id = int(row['id'])
+        oil_price = row.get('price', 0)
+
+>>>>>>> d1ff696678951b3ed1799dfa6209ce0a6a2d3254
         cursor.execute("UPDATE users SET oil_id = %s WHERE id = %s", (oil_id, user_id))
         conn.commit()
     except Exception as e:
         return jsonify({"error": f"更新使用者 oil_id 失敗: {e}"}), 500
     finally:
+<<<<<<< HEAD
         conn.close()
+=======
+        try:
+            conn.close()
+        except:
+            pass
+>>>>>>> d1ff696678951b3ed1799dfa6209ce0a6a2d3254
 
+    # 7) 整理描述與理由（描述用候選文本中找到的那條）
+    oil_desc = next((doc for doc in oil_docs if doc.startswith(oil_name)), "")
+    if not oil_desc:
+        oil_desc = "查無精油功效（模型可能回傳名單外精油）"
+    if not reason:
+        reason = "AI未正確給出推薦理由，請重新嘗試"
+
+    # 8) 回傳（含 price 與數字型 oil_id，前端用 assets/oils/{id}.jpg）
     return jsonify({
         "oil": oil_name,
         "oil_id": oil_id,
+<<<<<<< HEAD
+=======
+        "price": oil_price,
+>>>>>>> d1ff696678951b3ed1799dfa6209ce0a6a2d3254
         "reason": reason,
         "oil_desc": oil_desc,
         "status": "success"
     })
+
+@app.route('/search_diary_entries', methods=['GET'])
+def search_diary_entries():
+    user_id = session.get('user_id') or request.args.get('user_id')
+    query = request.args.get('query', '').strip()
+
+    if not user_id:
+        return jsonify({'error': 'Missing user_id'}), 400
+    if not query:
+        return jsonify({'error': 'Missing query'}), 400
+
+    connection = get_db_connection()
+    if connection is None:
+        return jsonify({'error': 'Failed to connect to database'}), 500
+
+    cursor = None
+    try:
+        cursor = connection.cursor(dictionary=True)
+        wildcard = f"%{query}%"
+
+        # 一次把兩個表合併查詢，並在 SQL 層排序
+        sql = """
+        SELECT *
+        FROM (
+            SELECT
+                d.id,
+                d.user_id,
+                d.content AS mood_text,
+                COALESCE(d.joy, 0)      AS joy,
+                COALESCE(d.sadness, 0)  AS sadness,
+                COALESCE(d.anger, 0)    AS anger,
+                COALESCE(d.positive, 0) AS positive,
+                COALESCE(d.anxiety, 0)  AS anxiety,
+                COALESCE(d.exhaust, 0)  AS exhaust,
+                d.color_mix             AS mixed_color,
+                d.create_at,
+                d.is_english,
+                d.details,
+                'Day'                   AS entry_type
+            FROM diaries d
+            WHERE d.user_id = %s AND (d.content LIKE %s OR d.details LIKE %s)
+
+            UNION ALL
+
+            SELECT
+                n.id,
+                n.user_id,
+                n.note                 AS mood_text,
+                COALESCE(n.joy, 0)     AS joy,
+                COALESCE(n.sadness, 0) AS sadness,
+                COALESCE(n.anger, 0)   AS anger,
+                COALESCE(n.positive, 0)AS positive,
+                COALESCE(n.anxiety, 0) AS anxiety,
+                COALESCE(n.exhaust, 0) AS exhaust,
+                NULL                   AS mixed_color,
+                n.create_at,
+                n.is_english,
+                n.details,
+                'Moment'               AS entry_type
+            FROM now n
+            WHERE n.user_id = %s AND (n.note LIKE %s OR n.details LIKE %s)
+        ) AS entries
+        ORDER BY create_at DESC
+        """
+
+        params = (user_id, wildcard, wildcard, user_id, wildcard, wildcard)
+        cursor.execute(sql, params)
+        rows = cursor.fetchall()
+
+        # 組裝回傳格式
+        results = []
+        for e in rows:
+            is_eng = bool(e.get('is_english'))
+            results.append({
+                'id': e['id'],
+                'user_id': e['user_id'],
+                'mood_text': e['mood_text'],
+                'mixed_color': e['mixed_color'],     # Day 有值、Moment 為 None
+                'create_at': e['create_at'],         # 原始時間物件（若前端要字串，下方也有 entry_date/time）
+                'is_english': e['is_english'],
+                'details': e.get('details'),
+                'entry_type': e['entry_type'],
+                'entry_date': e['create_at'].date().isoformat() if e['create_at'] else None,
+                'entry_time': e['create_at'].strftime('%H:%M:%S') if e['create_at'] else None,
+                'emotions': [
+                    {'emotion': ('快樂' if not is_eng else 'joy'),      'intensity': float(e['joy'])},
+                    {'emotion': ('悲傷' if not is_eng else 'sadness'),   'intensity': float(e['sadness'])},
+                    {'emotion': ('憤怒' if not is_eng else 'anger'),     'intensity': float(e['anger'])},
+                    {'emotion': ('積極' if not is_eng else 'positive'),  'intensity': float(e['positive'])},
+                    {'emotion': ('焦慮' if not is_eng else 'anxiety'),   'intensity': float(e['anxiety'])},
+                    {'emotion': ('疲憊' if not is_eng else 'exhaust'),   'intensity': float(e['exhaust'])},
+                ]
+            })
+
+        return jsonify(results), 200
+
+    except Error as e:
+        return jsonify({'error': f'Failed to search diary entries: {e}'}), 500
+    finally:
+        try:
+            if cursor is not None:
+                cursor.close()
+        except Exception:
+            pass
+        try:
+            connection.close()
+        except Exception:
+            pass
 
 # ============ 啟動 Flask 伺服器 ============
 if __name__ == '__main__':

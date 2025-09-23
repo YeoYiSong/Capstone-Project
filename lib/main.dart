@@ -9,7 +9,6 @@ import 'screens/login_screen.dart';
 import 'screens/register_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/diary_screen.dart';
-import 'screens/recommendation_screen.dart';
 import 'screens/chatbot_screen.dart';
 import 'screens/breathing_screen.dart';
 import 'screens/settings_screen.dart';
@@ -114,7 +113,6 @@ class _Smaily2AppState extends State<Smaily2App> {
               isEnglish: _isEnglish,
             ),
         '/diary': (context) => DiaryScreen(isEnglish: _isEnglish),
-        '/recommendation': (context) => const RecommendationScreen(),
         '/chatbot': (context) => ChatbotScreen(isEnglish: _isEnglish),
         '/breathing': (context) => BreathingScreen(isEnglish: _isEnglish),
         '/settings':

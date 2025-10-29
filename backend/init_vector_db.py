@@ -4,7 +4,7 @@ import requests
 import chromadb
 
 # ✅ 設定向量資料庫儲存路徑
-DB_DIR = r"C:\Capstone_Project\demosmaily\demosmaily\backend\chroma_db"
+DB_DIR = r"C:\demosmaily\backend\chroma_db"
 os.makedirs(DB_DIR, exist_ok=True)
 # ✅ PersistentClient（新版ChromaDB推薦）
 client = chromadb.PersistentClient(path=DB_DIR)

@@ -3,8 +3,10 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 import 'package:flutter/foundation.dart' show kIsWeb, kDebugMode;
+
 import 'dart:convert';
-import 'package:http/browser_client.dart';
+import 'package:http/http.dart' as http; // ✅ 共用 http client
+import '/network/http_client.dart'; // ✅ 我們的跨平台工廠
 import '/utils/config.dart';
 
 // ✅ 非阻塞地啟動推薦
@@ -34,7 +36,6 @@ class _LoginScreenState extends State<LoginScreen> {
         '[Login] userId=$userId, uid=${user.uid} -> kickoff recommendation (background)',
       );
     }
-
     // 背景啟動，不阻塞導頁
     unawaited(RecommendationManager.instance.kickoffAfterLogin());
 
@@ -180,33 +181,39 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  // ✅ 跨平台 http client；Web 會自動 withCredentials，行動端用 IO client
   Future<int?> _fetchUserId(String firebaseUid) async {
+    final http.Client client = createHttpClient(withCredentials: true);
     try {
-      final client = BrowserClient()..withCredentials = true;
-
-      final response = await client.post(
-        Uri.parse('${getBaseUrl()}/get_user_id'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'firebase_uid': firebaseUid}),
-      );
+      final response = await client
+          .post(
+            Uri.parse('${getBaseUrl()}/get_user_id'),
+            headers: const {'Content-Type': 'application/json'},
+            body: jsonEncode({'firebase_uid': firebaseUid}),
+          )
+          .timeout(const Duration(seconds: 15));
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         if (kDebugMode) {
           print('[Login] fetched user_id=${data['user_id']} from backend');
         }
-        return data['user_id'];
+        return data['user_id'] is int
+            ? data['user_id'] as int
+            : int.tryParse('${data['user_id']}');
       } else {
         _showSnackBar(
           widget.isEnglish
-              ? 'Failed to fetch user ID from backend'
-              : '無法從後端獲取使用者 ID',
+              ? 'Failed to fetch user ID from backend (HTTP ${response.statusCode})'
+              : '無法從後端獲取使用者 ID（HTTP ${response.statusCode}）',
         );
         return null;
       }
     } catch (e) {
       _showSnackBar(widget.isEnglish ? 'Error: $e' : '錯誤：$e');
       return null;
+    } finally {
+      client.close();
     }
   }
 
@@ -330,117 +337,281 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
+  // ---------- UI helpers ----------
+  InputDecoration _pillDecoration({
+    required String label,
+    required String hint,
+  }) {
+    const pillRadius = 28.0;
+    return InputDecoration(
+      labelText: label,
+      hintText: hint,
+      labelStyle: const TextStyle(color: Colors.white70, fontSize: 14),
+      hintStyle: const TextStyle(color: Colors.white60),
+      filled: true,
+      // 半透明白，疊在背景上（使用 withValues）
+      fillColor: Colors.white.withValues(alpha: 0.16),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(pillRadius),
+        borderSide: BorderSide(
+          color: Colors.white.withValues(alpha: 0.6),
+          width: 1.2,
+        ),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(pillRadius),
+        borderSide: const BorderSide(color: Color(0xFF91D5FF), width: 1.8),
+      ),
+    );
+  }
+
+  // Widget _circleIconButton({
+  //   required Widget icon,
+  //   required VoidCallback? onPressed,
+  //   EdgeInsetsGeometry padding = const EdgeInsets.all(6),
+  // }) {
+  //   return InkWell(
+  //     onTap: onPressed,
+  //     customBorder: const CircleBorder(),
+  //     child: Container(
+  //       padding: padding,
+  //       decoration: BoxDecoration(
+  //         color: Colors.white.withValues(alpha: 0.18),
+  //         shape: BoxShape.circle,
+  //         border: Border.all(
+  //           color: Colors.white.withValues(alpha: 0.7),
+  //           width: 1.4,
+  //         ),
+  //         boxShadow: [
+  //           BoxShadow(
+  //             color: Colors.black.withValues(alpha: 0.18),
+  //             blurRadius: 6,
+  //             offset: const Offset(0, 2),
+  //           ),
+  //         ],
+  //       ),
+  //       child: icon,
+  //     ),
+  //   );
+  // }
+
   @override
   Widget build(BuildContext context) {
+    // ----- 文案 -----
+    final String title = widget.isEnglish ? 'Log In' : '登入';
+    final String emailLabel = widget.isEnglish ? 'Email' : 'Email:';
+    final String pwdLabel = widget.isEnglish ? 'Password' : 'Password:';
+    final String quick = widget.isEnglish ? 'Quick Login' : '快速登入';
+    final String firstTimeQ =
+        widget.isEnglish ? 'First time here? ' : '第一次使用嗎？';
+    final String signupHere = widget.isEnglish ? 'Sign up here' : '在此註冊';
+
+    // ----- 讓版面分散些的比例留白（小螢幕會自動可捲動） -----
+    final double h = MediaQuery.of(context).size.height;
+    final double topSpace = h * 0.12;
+    final double midSpace = h * 0.08;
+    final double bottomSpace = h * 0.10;
+
     return Scaffold(
-      body: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 24.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Text(
-              widget.isEnglish ? 'Smaily 2' : 'Smaily 2',
-              style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 40),
-            TextField(
-              controller: _emailController,
-              decoration: InputDecoration(
-                hintText: widget.isEnglish ? 'Email' : '郵箱',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                filled: true,
-                fillColor: Colors.grey[200],
-              ),
-              keyboardType: TextInputType.emailAddress,
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _passwordController,
-              obscureText: true,
-              decoration: InputDecoration(
-                hintText: widget.isEnglish ? 'Password' : '密碼',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                filled: true,
-                fillColor: Colors.grey[200],
-              ),
-            ),
-            const SizedBox(height: 8),
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton(
-                onPressed: _resetPassword,
-                child: Text(widget.isEnglish ? 'Forget password?' : '忘記密碼？'),
-              ),
-            ),
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              height: 50,
-              child: ElevatedButton(
-                onPressed: _isLoading ? null : _signInWithEmail,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blue,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                child:
-                    _isLoading
-                        ? const CircularProgressIndicator(color: Colors.white)
-                        : Text(
-                          widget.isEnglish ? 'Log In' : '登入',
-                          style: const TextStyle(
-                            fontSize: 18,
-                            color: Colors.white,
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          // 背景圖
+          Image.asset('assets/picture/bg.jpg', fit: BoxFit.cover),
+          // 深色遮罩：讓背景暗淡（用 withValues）
+          Container(color: Colors.black.withValues(alpha: 0.42)),
+
+          // 內容
+          SafeArea(
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 560),
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      SizedBox(height: topSpace),
+
+                      // 標題
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 26,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 18),
+
+                      // Email（膠囊）
+                      SizedBox(
+                        height: 56,
+                        child: TextField(
+                          controller: _emailController,
+                          keyboardType: TextInputType.emailAddress,
+                          style: const TextStyle(color: Colors.white),
+                          cursorColor: Colors.white,
+                          decoration: _pillDecoration(
+                            label: emailLabel,
+                            hint:
+                                widget.isEnglish
+                                    ? 'Enter your email'
+                                    : '輸入你的電子郵件',
                           ),
                         ),
+                      ),
+                      const SizedBox(height: 12),
+
+                      // Password（膠囊 + 右側箭頭）
+                      SizedBox(
+                        height: 56,
+                        child: TextField(
+                          controller: _passwordController,
+                          obscureText: true,
+                          style: const TextStyle(color: Colors.white),
+                          cursorColor: Colors.white,
+                          decoration: _pillDecoration(
+                            label: pwdLabel,
+                            hint:
+                                widget.isEnglish
+                                    ? 'Enter your password'
+                                    : '輸入你的密碼',
+                          ).copyWith(
+                            suffixIcon: Padding(
+                              padding: const EdgeInsets.only(right: 6),
+                              child:
+                                  _isLoading
+                                      ? const SizedBox(
+                                        width: 20,
+                                        height: 20,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2.2,
+                                          color: Colors.white,
+                                        ),
+                                      )
+                                      : IconButton(
+                                        onPressed:
+                                            _isLoading
+                                                ? null
+                                                : _signInWithEmail,
+                                        icon: const Icon(
+                                          Icons.arrow_forward,
+                                          color: Colors.white,
+                                          size: 22,
+                                        ),
+                                      ),
+                            ),
+                            suffixIconConstraints: const BoxConstraints(
+                              minWidth: 56,
+                              minHeight: 56,
+                            ),
+                          ),
+                        ),
+                      ),
+
+                      // 忘記密碼（靠右）
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: TextButton(
+                          onPressed: _resetPassword,
+                          child: Text(
+                            widget.isEnglish ? 'Forget password?' : '忘記密碼？',
+                            style: const TextStyle(color: Colors.white70),
+                          ),
+                        ),
+                      ),
+
+                      SizedBox(height: midSpace),
+
+                      // 快速登入（置中）
+                      Center(
+                        child: Column(
+                          children: [
+                            Text(
+                              quick,
+                              style: const TextStyle(
+                                color: Colors.white70,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                GestureDetector(
+                                  onTap:
+                                      _isLoading ? null : _signInWithFacebook,
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(999),
+                                    child: Image.asset(
+                                      "assets/icons/fb.png",
+                                      width: 28,
+                                      height: 28,
+                                      fit: BoxFit.cover,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 18),
+                                GestureDetector(
+                                  onTap: _isLoading ? null : _signInWithGoogle,
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(999),
+                                    child: Image.asset(
+                                      "assets/icons/google.png",
+                                      width: 28,
+                                      height: 28,
+                                      fit: BoxFit.cover,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      const SizedBox(height: 28),
+
+                      // 底部註冊連結（藍色底線）
+                      Center(
+                        child: Wrap(
+                          alignment: WrapAlignment.center,
+                          children: [
+                            Text(
+                              firstTimeQ,
+                              style: const TextStyle(color: Colors.white70),
+                            ),
+                            InkWell(
+                              onTap: () {
+                                Navigator.pushReplacementNamed(
+                                  context,
+                                  '/register',
+                                  arguments: {'isEnglish': widget.isEnglish},
+                                );
+                              },
+                              child: Text(
+                                signupHere,
+                                style: const TextStyle(
+                                  color: Colors.lightBlueAccent,
+                                  decoration: TextDecoration.underline,
+                                  decorationThickness: 1.6,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      SizedBox(height: bottomSpace),
+                    ],
+                  ),
+                ),
               ),
             ),
-            const SizedBox(height: 20),
-            Row(
-              children: const [
-                Expanded(child: Divider(thickness: 1)),
-                Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 10),
-                  child: Text('or'),
-                ),
-                Expanded(child: Divider(thickness: 1)),
-              ],
-            ),
-            const SizedBox(height: 10),
-            TextButton(
-              onPressed: () {
-                Navigator.pushNamed(
-                  context,
-                  '/register',
-                  arguments: {'isEnglish': widget.isEnglish},
-                );
-              },
-              child: Text(widget.isEnglish ? 'Sign Up' : '註冊'),
-            ),
-            const SizedBox(height: 10),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                IconButton(
-                  onPressed: _signInWithFacebook,
-                  icon: Image.asset("assets/icons/fb.png", width: 40),
-                ),
-                const SizedBox(width: 20),
-                IconButton(
-                  onPressed: _signInWithGoogle,
-                  icon: Image.asset("assets/icons/google.png", width: 40),
-                ),
-                const SizedBox(width: 20),
-              ],
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

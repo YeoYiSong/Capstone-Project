@@ -1,13 +1,15 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:math' as math; // ⬅ 用來做聲波的高斯衰減
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:http/http.dart' as http;
 
 import 'home_screen.dart';
 import 'record_feelings_screen.dart';
+import '/utils/config.dart';
 
 class BreathingScreen extends StatefulWidget {
   final bool isEnglish;
@@ -20,11 +22,15 @@ class BreathingScreen extends StatefulWidget {
 enum BreathMode { natural, guided }
 
 class BreathingScreenState extends State<BreathingScreen> {
-  // 調色盤（跟你給的圖）
+  // 調色盤
   static const Color kBg = Color(0xFFDDEBD7);
   static const Color kInk = Color(0xFF2E5F3A);
   static const Color kSubInk = Color(0xFF5E7F6A);
   static const Color kPill = Color(0xFFE7F1E3);
+
+  // 葉子圖
+  static const String kLeafAsset = 'assets/picture/fullleaf.png';
+  static const String kHalfLeafAsset = 'assets/picture/halfleaf.png';
 
   BreathMode _mode = BreathMode.natural;
 
@@ -33,13 +39,16 @@ class BreathingScreenState extends State<BreathingScreen> {
 
   // 流程
   int step = 0; // 0 選模式；1 準備；2 進行；3 完成
-  bool _playIntro = false; // 引導模式會播放前言
 
   // 音訊/計時
   final AudioPlayer _audioPlayer = AudioPlayer();
+  StreamSubscription<void>? _completeSub;
   Timer? _timer;
   bool _isPlaying = false;
   int _remainingSeconds = 0;
+
+  // ✅ 實際跑的秒數
+  int _elapsedSeconds = 0;
 
   String? _userId;
 
@@ -47,6 +56,7 @@ class BreathingScreenState extends State<BreathingScreen> {
   void initState() {
     super.initState();
     _audioPlayer.setVolume(1.0);
+    _audioPlayer.setReleaseMode(ReleaseMode.stop);
     _getUserIdFromFirebase();
   }
 
@@ -56,77 +66,90 @@ class BreathingScreenState extends State<BreathingScreen> {
       if (user == null) return;
 
       final uid = user.uid;
-      final response = await http.post(
-        Uri.parse('http://localhost:5000/get_user_id'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'firebase_uid': uid}),
-      );
+      final base = getBaseUrl();
+      final url = '$base/get_user_id';
+
+      final response = await http
+          .post(
+            Uri.parse(url),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({'firebase_uid': uid}),
+          )
+          .timeout(const Duration(seconds: 6));
+
+      if (!mounted) return;
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        if (!mounted) return;
-        setState(() => _userId = data['user_id'].toString());
+        final v = data['user_id'];
+        if (v != null) setState(() => _userId = v.toString());
       }
     } catch (_) {}
   }
 
   @override
   void dispose() {
+    _cancelAudioCompleteSub();
+    _audioPlayer.stop();
     _audioPlayer.dispose();
     _timer?.cancel();
     super.dispose();
   }
 
-  // ====== 音訊（只在引導呼吸用） ======
-  Future<void> _playAudioSequence() async {
-    if (!mounted || _mode != BreathMode.guided) return;
+  // ====== 音訊控制 ======
+  void _cancelAudioCompleteSub() {
+    _completeSub?.cancel();
+    _completeSub = null;
+  }
+
+  /// 開始依模式播放：
+  /// - natural: 直接 loop guide.mp3
+  /// - guided : 先播 intro.mp3，結束後 loop guide.mp3
+  Future<void> _playAudioForCurrentMode() async {
+    _cancelAudioCompleteSub();
     try {
-      if (_playIntro) {
-        await _audioPlayer.play(AssetSource('breath/intro.mp3'));
-        _audioPlayer.onPlayerComplete.listen((_) => _playGuideAudio());
+      if (_mode == BreathMode.natural) {
+        // 直接進入引導音 loop
+        await _startGuideLoop();
       } else {
-        _playGuideAudio();
+        // 先播 intro 一次
+        await _audioPlayer.stop();
+        await _audioPlayer.setReleaseMode(ReleaseMode.stop);
+        await _audioPlayer.play(AssetSource('breath/intro.mp3'));
+        _cancelAudioCompleteSub();
+        _completeSub = _audioPlayer.onPlayerComplete.listen((_) async {
+          // intro 結束 → 進入 guide loop
+          await _startGuideLoop();
+        });
       }
     } catch (_) {
       _toast(widget.isEnglish ? 'Failed to play audio' : '無法播放音檔');
     }
   }
 
-  Future<void> _playGuideAudio() async {
-    if (!mounted) return;
-    try {
-      await _audioPlayer.play(AssetSource('breath/guide.mp3'));
-      _audioPlayer.onPlayerComplete.listen((_) async {
-        if (_remainingSeconds > 0) {
-          await _audioPlayer.play(AssetSource('breath/breathing_guide.mp4'));
-          _audioPlayer.onPlayerComplete.listen((__) async {
-            if (_remainingSeconds > 0) {
-              await _audioPlayer.play(
-                AssetSource('breath/breathing_guide.mp4'),
-              );
-            }
-          });
-        }
-      });
-    } catch (_) {
-      _toast(widget.isEnglish ? 'Failed to play guide audio' : '無法播放引導音檔');
-    }
+  /// 進入 guide.mp3 循環播放，直到時間到或停止
+  Future<void> _startGuideLoop() async {
+    _cancelAudioCompleteSub();
+    await _audioPlayer.stop();
+    await _audioPlayer.setReleaseMode(ReleaseMode.loop);
+    await _audioPlayer.play(AssetSource('breath/guide.mp3'));
+    // loop 模式下不需要 onPlayerComplete 監聽
   }
 
   // ====== 流程控制 ======
   void _goNextFromSelect() {
-    // 不跳對話框：引導模式就固定播放前言，自然模式不播
-    _playIntro = (_mode == BreathMode.guided);
     setState(() => step = 1);
   }
 
   void _startExercise() {
+    _elapsedSeconds = 0; // ✅ 重置實際時長
     setState(() {
       step = 2;
       _isPlaying = true;
       _remainingSeconds = duration * 60;
     });
-    if (_mode == BreathMode.guided) _playAudioSequence();
+    // 依模式啟動音訊
+    _playAudioForCurrentMode();
     _startTimer();
   }
 
@@ -144,22 +167,31 @@ class BreathingScreenState extends State<BreathingScreen> {
     });
   }
 
-  void _togglePause() {
+  void _togglePause() async {
     setState(() {
       if (_isPlaying) {
-        _audioPlayer.pause();
-        _timer?.cancel();
+        _audioPlayer.pause(); // 暫停音訊
+        _timer?.cancel(); // 停止計時
       } else {
-        if (_mode == BreathMode.guided) _audioPlayer.resume();
-        _startTimer();
+        if (_remainingSeconds > 0) {
+          _audioPlayer.resume(); // 恢復音訊
+          _startTimer(); // 恢復計時
+        }
       }
       _isPlaying = !_isPlaying;
     });
   }
 
   void _stopExercise() {
+    _cancelAudioCompleteSub();
     _audioPlayer.stop();
     _timer?.cancel();
+
+    // ✅ 實際跑的秒數：總秒數 - 剩餘秒數（安全夾取）
+    final total = duration * 60;
+    final ran = (total - _remainingSeconds);
+    _elapsedSeconds = ran.clamp(0, total);
+
     setState(() {
       step = 3;
       _isPlaying = false;
@@ -181,10 +213,45 @@ class BreathingScreenState extends State<BreathingScreen> {
     }
   }
 
-  // 0：模式選擇（按住大球左右滑即可切換）
-  Widget _buildSelectMode() {
-    double dragDx = 0.0;
+  // ---- 綠色底色 + 葉子鋪滿高度（不裁切、不過度放大）+ 透明 Scaffold 疊上層 ----
+  Widget _bgFrame({
+    required PreferredSizeWidget appBar,
+    required Widget body,
+    Widget? bottomNav,
+    String imageAsset = kHalfLeafAsset, // 想用整張葉子就改成 kLeafAsset
+  }) {
+    return Stack(
+      children: [
+        const Positioned.fill(child: ColoredBox(color: kBg)), // 最底層綠色
+        // 葉子背景：以「高度」為基準鋪滿，寬度多出/不足處用綠色底色補
+        Positioned.fill(
+          child: IgnorePointer(
+            child: SizedBox.expand(
+              child: FittedBox(
+                fit: BoxFit.fitHeight, // 撐滿「高度」，不裁切
+                alignment: Alignment.bottomCenter, // 葉子錨在底部
+                child: Image.asset(
+                  imageAsset,
+                  filterQuality: FilterQuality.high,
+                ),
+              ),
+            ),
+          ),
+        ),
 
+        // 你的 UI 疊在最上層
+        Scaffold(
+          backgroundColor: Colors.transparent,
+          appBar: appBar,
+          body: body,
+          bottomNavigationBar: bottomNav,
+        ),
+      ],
+    );
+  }
+
+  // 0：模式選擇
+  Widget _buildSelectMode() {
     return Scaffold(
       backgroundColor: kBg,
       appBar: AppBar(
@@ -211,72 +278,66 @@ class BreathingScreenState extends State<BreathingScreen> {
           ),
         ),
       ),
-      body: Column(
-        children: [
-          const SizedBox(height: 22),
-          // 可左右滑的大球
-          GestureDetector(
-            onHorizontalDragStart: (_) => dragDx = 0,
-            onHorizontalDragUpdate: (d) => dragDx += d.delta.dx,
-            onHorizontalDragEnd: (_) {
-              const threshold = 40.0;
-              if (dragDx > threshold && _mode != BreathMode.guided) {
-                setState(() => _mode = BreathMode.guided);
-              } else if (dragDx < -threshold && _mode != BreathMode.natural) {
-                setState(() => _mode = BreathMode.natural);
-              }
-            },
-            child: _bigBall(
-              label:
-                  _mode == BreathMode.natural
-                      ? (widget.isEnglish ? 'Natural' : '自然呼吸')
-                      : (widget.isEnglish ? 'Guided' : '引導呼吸'),
-            ),
-          ),
-          const SizedBox(height: 10),
-          Text(
-            widget.isEnglish
-                ? 'Hold the circle and drag left/right to switch'
-                : '按住大圓左右滑動可切換模式',
-            style: TextStyle(color: kSubInk.withValues(alpha: 0.8)),
-          ),
-
-          const SizedBox(height: 18),
-
-          // 時長：連續「聲波掃描」滑桿（5~10 分鐘）
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 28),
-            child: _MinuteWavePicker(
-              options: const [5, 6, 7, 8, 9, 10],
-              minute: duration,
-              onChanged: (m) => setState(() => duration = m),
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            widget.isEnglish ? '$duration min' : '$duration 分鐘',
-            style: const TextStyle(color: kSubInk, fontWeight: FontWeight.w700),
-          ),
-
-          const Spacer(),
-
-          // 底線裝飾
-          SizedBox(
-            height: 120,
-            child: Align(
-              alignment: Alignment.bottomCenter,
-              child: Container(
-                height: 2,
-                margin: const EdgeInsets.symmetric(horizontal: 18),
-                color: kSubInk.withValues(alpha: 0.25),
+      body: _scrollWrap(
+        padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Container(
+              width: 220,
+              height: 220,
+              decoration: BoxDecoration(
+                color: kPill.withValues(alpha: 0.95),
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.08),
+                    blurRadius: 16,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: _ModeWheel(
+                isEnglish: widget.isEnglish,
+                initial: _mode,
+                onChanged: (m) {
+                  if (_mode != m) {
+                    HapticFeedback.selectionClick();
+                    setState(() => _mode = m);
+                  }
+                },
               ),
             ),
-          ),
-
-          // 下一步
-          Padding(
-            padding: const EdgeInsets.fromLTRB(18, 8, 18, 18),
-            child: SizedBox(
+            const SizedBox(height: 10),
+            Text(
+              widget.isEnglish ? 'Swipe up/down to switch' : '上下滑動可切換模式',
+              style: TextStyle(color: kSubInk.withValues(alpha: 0.8)),
+            ),
+            _leafStrip(
+              kLeafAsset,
+              padding: const EdgeInsets.only(top: 12, bottom: 8),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              child: _MinuteWavePicker(
+                options: const [5, 6, 7, 8, 9, 10],
+                minute: duration,
+                onChanged: (m) => setState(() => duration = m),
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              widget.isEnglish ? '$duration min' : '$duration 分鐘',
+              style: const TextStyle(
+                color: kSubInk,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 24),
+            Container(height: 2, color: kSubInk.withValues(alpha: 0.25)),
+            const SizedBox(height: 12),
+            SizedBox(
               width: double.infinity,
               height: 48,
               child: ElevatedButton(
@@ -294,13 +355,32 @@ class BreathingScreenState extends State<BreathingScreen> {
                 child: Text(widget.isEnglish ? 'Next' : '下一步'),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 
-  // 1：開始前提示
+  // 葉子條（只用在選擇頁）
+  Widget _leafStrip(
+    String asset, {
+    EdgeInsets padding = const EdgeInsets.only(top: 12, bottom: 8),
+  }) {
+    return Padding(
+      padding: padding,
+      child: SizedBox(
+        width: double.infinity,
+        child: Image.asset(
+          asset,
+          fit: BoxFit.fitWidth,
+          alignment: Alignment.center,
+          filterQuality: FilterQuality.high,
+        ),
+      ),
+    );
+  }
+
+  // 1：準備頁 —— 全屏葉子 + 內容完全置中
   Widget _buildPrepare() {
     final tip =
         (_mode == BreathMode.guided)
@@ -311,8 +391,7 @@ class BreathingScreenState extends State<BreathingScreen> {
                 ? 'Just notice your breath. No guide will play.'
                 : '自然覺察呼吸，本次不會播放引導。');
 
-    return Scaffold(
-      backgroundColor: kBg,
+    return _bgFrame(
       appBar: AppBar(
         backgroundColor: kBg,
         elevation: 0,
@@ -337,35 +416,36 @@ class BreathingScreenState extends State<BreathingScreen> {
         ),
       ),
       body: Center(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(24, 10, 24, 24),
-          child: Column(
-            children: [
-              const SizedBox(height: 30),
-              Text(
-                tip,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: kInk,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 18,
-                  height: 1.3,
-                ),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 360),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: Text(
+              tip,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: kInk,
+                fontWeight: FontWeight.w800,
+                fontSize: 20,
+                height: 1.35,
               ),
-              const SizedBox(height: 24),
-              ElevatedButton(
-                onPressed: _startExercise,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: kPill,
-                  foregroundColor: kInk,
-                  elevation: 0,
-                  shape: const StadiumBorder(),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 28,
-                    vertical: 12,
-                  ),
+            ),
+          ),
+        ),
+      ),
+      bottomNav: SafeArea(
+        top: false,
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(24, 12, 24, 12),
+          color: Colors.transparent,
+          child: Row(
+            children: [
+              Expanded(
+                child: _pillIconButton(
+                  icon: Icons.play_arrow_rounded,
+                  label: widget.isEnglish ? 'Start' : '開始',
+                  onTap: _startExercise,
                 ),
-                child: Text(widget.isEnglish ? 'Start' : '開始'),
               ),
             ],
           ),
@@ -374,7 +454,7 @@ class BreathingScreenState extends State<BreathingScreen> {
     );
   }
 
-  // 2：進行中
+  // 2：進行中 —— 全屏葉子 + 標題/時間/進度條完全置中
   Widget _buildRunning() {
     final title =
         (_mode == BreathMode.guided)
@@ -383,8 +463,7 @@ class BreathingScreenState extends State<BreathingScreen> {
 
     final progress = _remainingSeconds / (duration * 60);
 
-    return Scaffold(
-      backgroundColor: kBg,
+    return _bgFrame(
       appBar: AppBar(
         backgroundColor: kBg,
         elevation: 0,
@@ -408,66 +487,94 @@ class BreathingScreenState extends State<BreathingScreen> {
           ),
         ),
       ),
-      body: Padding(
-        padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
-        child: Column(
-          children: [
-            const SizedBox(height: 10),
-            Text(
-              title,
-              style: const TextStyle(
-                color: kInk,
-                fontWeight: FontWeight.w800,
-                fontSize: 22,
-              ),
-            ),
-            const SizedBox(height: 10),
-            Text(
-              widget.isEnglish
-                  ? 'Time Remaining: ${_formatDuration(_remainingSeconds)}'
-                  : '剩餘時間：${_formatDuration(_remainingSeconds)}',
-              style: const TextStyle(
-                color: kSubInk,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const SizedBox(height: 22),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(10),
-              child: LinearProgressIndicator(
-                value: progress.clamp(0, 1),
-                minHeight: 10,
-                backgroundColor: kPill,
-                valueColor: const AlwaysStoppedAnimation<Color>(kInk),
-              ),
-            ),
-            const SizedBox(height: 26),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 360),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                _pillButton(
+                Text(
+                  title,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: kInk,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 24,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  widget.isEnglish
+                      ? 'Time Remaining: ${_formatDuration(_remainingSeconds)}'
+                      : '剩餘時間：${_formatDuration(_remainingSeconds)}',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: kSubInk,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: LinearProgressIndicator(
+                      value: progress.clamp(0, 1),
+                      minHeight: 10,
+                      backgroundColor: kPill,
+                      valueColor: const AlwaysStoppedAnimation<Color>(kInk),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+      bottomNav: SafeArea(
+        top: false,
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(24, 12, 24, 12),
+          color: Colors.transparent,
+          child: Row(
+            children: [
+              Expanded(
+                child: _pillIconButton(
+                  icon:
+                      _isPlaying
+                          ? Icons.pause_rounded
+                          : Icons.play_arrow_rounded,
                   label:
                       _isPlaying
                           ? (widget.isEnglish ? 'Pause' : '暫停')
                           : (widget.isEnglish ? 'Resume' : '繼續'),
                   onTap: _togglePause,
                 ),
-                const SizedBox(width: 16),
-                _pillButton(
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _pillIconButton(
+                  icon: Icons.stop_rounded,
                   label: widget.isEnglish ? 'End' : '結束',
                   onTap: _stopExercise,
                 ),
-              ],
-            ),
-            const Spacer(),
-          ],
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  // 3：完成
+  // 3：完成（保留）
   Widget _buildDone() {
+    final completeHint =
+        widget.isEnglish
+            ? 'Take a moment to note how you feel after breathing.'
+            : '花一點時間記下呼吸後的感受。';
+
     return Scaffold(
       backgroundColor: kBg,
       appBar: AppBar(
@@ -479,120 +586,184 @@ class BreathingScreenState extends State<BreathingScreen> {
         ),
       ),
       body: Center(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
-          child: Column(
-            children: [
-              Text(
-                widget.isEnglish ? 'Breathing Completed!' : '呼吸練習完成！',
-                style: const TextStyle(
-                  color: kInk,
-                  fontWeight: FontWeight.w800,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Text(
+              widget.isEnglish ? 'Breathing Completed!' : '呼吸練習完成！',
+              style: const TextStyle(
+                color: kInk,
+                fontWeight: FontWeight.w900,
+                fontSize: 32,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 20),
+            // ✅ 顯示實際時長（mm:ss）
+            Text(
+              widget.isEnglish
+                  ? 'Duration: ${_formatDuration(_elapsedSeconds)}'
+                  : '時長：${_formatDuration(_elapsedSeconds)}',
+              style: const TextStyle(
+                color: kSubInk,
+                fontWeight: FontWeight.w700,
+                fontSize: 24,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 18),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+              decoration: BoxDecoration(
+                color: kPill,
+                borderRadius: BorderRadius.circular(14),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.06),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.edit_note, color: kInk),
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: Text(
+                      completeHint,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: kInk,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 16,
+                        height: 1.3,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 28),
+            ElevatedButton(
+              onPressed: () async {
+                if (_userId == null) {
+                  await _getUserIdFromFirebase();
+                }
+                if (_userId == null) {
+                  _toast(
+                    widget.isEnglish ? 'User ID not available.' : '無法取得使用者 ID',
+                  );
+                  return;
+                }
+                if (!mounted) return;
+
+                // ✅ 導頁時帶「實際分鐘」
+                final actualMinutes = (_elapsedSeconds / 60).round();
+
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder:
+                        (_) => RecordFeelingsScreen(
+                          isEnglish: widget.isEnglish,
+                          date: DateTime.now(),
+                          userId: _userId!,
+                          duration: actualMinutes, // ✅ 實際分鐘
+                          min: actualMinutes, // ✅ 實際分鐘
+                        ),
+                  ),
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: kPill,
+                foregroundColor: kInk,
+                elevation: 0,
+                shape: const StadiumBorder(),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 60,
+                  vertical: 20,
+                ),
+                textStyle: const TextStyle(
                   fontSize: 22,
+                  fontWeight: FontWeight.w800,
                 ),
               ),
-              const SizedBox(height: 8),
-              Text(
-                widget.isEnglish
-                    ? 'Duration: $duration min'
-                    : '時長：$duration 分鐘',
-                style: const TextStyle(
-                  color: kSubInk,
-                  fontWeight: FontWeight.w700,
+              child: Text(widget.isEnglish ? 'Record Feelings' : '記錄感受'),
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pushAndRemoveUntil(
+                  context,
+                  MaterialPageRoute(
+                    builder:
+                        (_) => HomeScreen(
+                          username: 'User',
+                          isEnglish: widget.isEnglish,
+                        ),
+                  ),
+                  (route) => false,
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: kPill,
+                foregroundColor: kInk,
+                elevation: 0,
+                shape: const StadiumBorder(),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 60,
+                  vertical: 20,
+                ),
+                textStyle: const TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w800,
                 ),
               ),
-              const SizedBox(height: 22),
-              _pillButton(
-                label: widget.isEnglish ? 'Record Feelings' : '記錄感受',
-                onTap: () {
-                  if (_userId == null) {
-                    _toast(
-                      widget.isEnglish
-                          ? 'User ID not available.'
-                          : '無法取得使用者 ID',
-                    );
-                    return;
-                  }
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder:
-                          (_) => RecordFeelingsScreen(
-                            isEnglish: widget.isEnglish,
-                            date: DateTime.now(),
-                            userId: _userId!,
-                            duration: duration,
-                            min: duration,
-                          ),
-                    ),
-                  );
-                },
-              ),
-              const SizedBox(height: 12),
-              _pillButton(
-                label: widget.isEnglish ? 'Back to Home' : '返回首頁',
-                onTap: () {
-                  Navigator.pushAndRemoveUntil(
-                    context,
-                    MaterialPageRoute(
-                      builder:
-                          (_) => HomeScreen(
-                            username: 'User',
-                            isEnglish: widget.isEnglish,
-                          ),
-                    ),
-                    (route) => false,
-                  );
-                },
-              ),
-            ],
-          ),
+              child: Text(widget.isEnglish ? 'Back to Home' : '返回首頁'),
+            ),
+          ],
         ),
       ),
     );
   }
 
-  // ===== 元件 =====
-  Widget _bigBall({required String label}) {
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 200),
-      curve: Curves.easeOut,
-      width: 220,
-      height: 220,
-      decoration: BoxDecoration(
-        color: kPill.withValues(alpha: 0.95),
-        shape: BoxShape.circle,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.08),
-            blurRadius: 16,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      alignment: Alignment.center,
-      child: Text(
-        label,
-        style: const TextStyle(
-          color: kInk,
-          fontWeight: FontWeight.w800,
-          fontSize: 18,
-        ),
-      ),
-    );
-  }
-
-  Widget _pillButton({required String label, required VoidCallback onTap}) {
-    return ElevatedButton(
+  // ===== 共用小元件 =====
+  Widget _pillIconButton({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return ElevatedButton.icon(
       onPressed: onTap,
+      icon: Icon(icon, size: 22),
+      label: Text(label, style: const TextStyle(fontWeight: FontWeight.w800)),
       style: ElevatedButton.styleFrom(
         backgroundColor: kPill,
         foregroundColor: kInk,
         elevation: 0,
         shape: const StadiumBorder(),
-        padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+        textStyle: const TextStyle(fontSize: 16),
       ),
-      child: Text(label, style: const TextStyle(fontWeight: FontWeight.w700)),
+    );
+  }
+
+  // 捲動包裝（選擇頁使用）
+  Widget _scrollWrap({required EdgeInsets padding, required Widget child}) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final h = constraints.maxHeight;
+        return SingleChildScrollView(
+          physics: const BouncingScrollPhysics(),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: h),
+            child: Padding(padding: padding, child: child),
+          ),
+        );
+      },
     );
   }
 
@@ -608,10 +779,103 @@ class BreathingScreenState extends State<BreathingScreen> {
   }
 }
 
-/// 連續「聲波掃描」時間選擇器：options 例如 [5,6,7,8,9,10]
-/// - 拖動時連續跟手，不吸附
-/// - 當前分鐘 = 位置落在哪個區段就是哪個值（即 options[idx]）
-/// - 軌道是一串會跟著手指產生波峰的 bar
+/// 🛞 兩列的圓形滾輪
+class _ModeWheel extends StatefulWidget {
+  final bool isEnglish;
+  final BreathMode initial;
+  final ValueChanged<BreathMode> onChanged;
+
+  const _ModeWheel({
+    required this.isEnglish,
+    required this.initial,
+    required this.onChanged,
+  });
+
+  @override
+  State<_ModeWheel> createState() => _ModeWheelState();
+}
+
+class _ModeWheelState extends State<_ModeWheel> {
+  late FixedExtentScrollController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    final initIndex = widget.initial == BreathMode.natural ? 0 : 1;
+    _ctrl = FixedExtentScrollController(initialItem: initIndex);
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  String _labelFor(BreathMode m) {
+    if (widget.isEnglish) return m == BreathMode.natural ? 'Natural' : 'Guided';
+    return m == BreathMode.natural ? '自然呼吸' : '引導呼吸';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        Positioned(
+          left: 18,
+          right: 18,
+          child: Container(
+            height: 46,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.28),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: BreathingScreenState.kSubInk.withValues(alpha: 0.35),
+                width: 1,
+              ),
+            ),
+          ),
+        ),
+        ListWheelScrollView.useDelegate(
+          controller: _ctrl,
+          itemExtent: 44,
+          diameterRatio: 1.8,
+          perspective: 0.003,
+          physics: const FixedExtentScrollPhysics(),
+          onSelectedItemChanged: (index) {
+            final m = index == 0 ? BreathMode.natural : BreathMode.guided;
+            widget.onChanged(m);
+          },
+          childDelegate: ListWheelChildBuilderDelegate(
+            childCount: 2,
+            builder: (context, index) {
+              final mode = index == 0 ? BreathMode.natural : BreathMode.guided;
+              final isSelected = _ctrl.selectedItem == index;
+              return Center(
+                child: AnimatedDefaultTextStyle(
+                  duration: const Duration(milliseconds: 150),
+                  style: TextStyle(
+                    color:
+                        isSelected
+                            ? BreathingScreenState.kInk
+                            : BreathingScreenState.kSubInk.withValues(
+                              alpha: 0.55,
+                            ),
+                    fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                    fontSize: isSelected ? 18 : 16,
+                  ),
+                  child: Text(_labelFor(mode)),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// 連續「聲波掃描」時間選擇器
 class _MinuteWavePicker extends StatefulWidget {
   final List<int> options;
   final int minute;
@@ -628,7 +892,7 @@ class _MinuteWavePicker extends StatefulWidget {
 }
 
 class _MinuteWavePickerState extends State<_MinuteWavePicker> {
-  late double _t; // 0..1 連續位置
+  late double _t; // 0..1
 
   @override
   void initState() {
@@ -652,15 +916,14 @@ class _MinuteWavePickerState extends State<_MinuteWavePicker> {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, c) {
-        const double pad = 16; // 左右內縮，避免邊緣裁切
+        const double pad = 16;
         final double w = c.maxWidth;
         final double usable = (w - pad * 2).clamp(1.0, double.infinity);
         final int n = widget.options.length;
 
-        // 0..1 位置 -> 對應分鐘（區段）
         int minuteFromT(double t) {
           if (n <= 1) return widget.options.first;
-          final pos = t * (n - 1); // 0..(n-1)
+          final pos = t * (n - 1);
           final idx = pos.floor().clamp(0, n - 1);
           return widget.options[idx];
         }
@@ -677,7 +940,6 @@ class _MinuteWavePickerState extends State<_MinuteWavePicker> {
           height: 48,
           child: Stack(
             children: [
-              // 聲波軌道
               Positioned.fill(
                 child: CustomPaint(
                   painter: _BarsWavePainter(
@@ -694,7 +956,6 @@ class _MinuteWavePickerState extends State<_MinuteWavePicker> {
                   ),
                 ),
               ),
-              // 手勢（整條都可拖）
               Positioned.fill(
                 child: GestureDetector(
                   behavior: HitTestBehavior.translucent,
@@ -710,7 +971,7 @@ class _MinuteWavePickerState extends State<_MinuteWavePicker> {
   }
 }
 
-/// 畫出整條「聲波」：以 t 決定中心位置，使用高斯衰減讓 bar 高度/顏色向兩側遞減
+/// 畫出整條「聲波」
 class _BarsWavePainter extends CustomPainter {
   final double t; // 0..1
   final int barCount;
@@ -746,9 +1007,8 @@ class _BarsWavePainter extends CustomPainter {
     for (int i = 0; i < barCount; i++) {
       final double x = pad + gap * i;
 
-      // 高斯：exp(- (dx^2) / (2 sigma^2))
       final double dx = (x - centerX);
-      final double g = math.exp(-(dx * dx) / (2.0 * sigma * sigma)); // 0..1
+      final double g = math.exp(-(dx * dx) / (2.0 * sigma * sigma));
       final double h = base + amp * g;
       final color = Color.lerp(colorBase, colorPeak, g.clamp(0.0, 1.0))!;
 

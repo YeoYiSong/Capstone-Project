@@ -17,36 +17,37 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final TextEditingController _passwordController = TextEditingController();
   bool _isLoading = false;
 
+  // ---------- Auth ----------
   Future<void> _registerWithEmail() async {
-    setState(() {
-      _isLoading = true;
-    });
+    if (_isLoading) return;
+    setState(() => _isLoading = true);
 
     try {
-      final String email = _emailController.text.trim();
-      final String password = _passwordController.text;
+      final email = _emailController.text.trim();
+      final password = _passwordController.text;
 
       if (email.isEmpty || password.isEmpty) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                widget.isEnglish
-                    ? 'Email and password cannot be empty'
-                    : '郵箱和密碼不能為空',
-              ),
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              widget.isEnglish
+                  ? 'Email and password cannot be empty'
+                  : '電子郵件與密碼不能為空',
             ),
-          );
-        }
+          ),
+        );
         return;
       }
 
-      final UserCredential userCredential = await FirebaseAuth.instance
-          .createUserWithEmailAndPassword(email: email, password: password);
+      final cred = await FirebaseAuth.instance.createUserWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
 
-      final User? user = userCredential.user;
-
-      if (user != null && mounted) {
+      if (!mounted) return;
+      final user = cred.user;
+      if (user != null) {
         Navigator.pushReplacementNamed(
           context,
           '/home',
@@ -54,72 +55,63 @@ class _RegisterScreenState extends State<RegisterScreen> {
         );
       }
     } on FirebaseAuthException catch (e) {
-      String errorMessage;
-      if (e.code == 'email-already-in-use') {
-        errorMessage =
-            widget.isEnglish ? 'The email is already in use.' : '該郵箱已被使用。';
-      } else if (e.code == 'invalid-email') {
-        errorMessage = widget.isEnglish ? 'Invalid email format.' : '無效的郵箱格式。';
-      } else if (e.code == 'weak-password') {
-        errorMessage = widget.isEnglish ? 'The password is too weak.' : '密碼太弱。';
-      } else {
-        errorMessage =
-            widget.isEnglish
-                ? 'Registration failed: ${e.message}'
-                : '註冊失敗：${e.message}';
+      if (!mounted) return;
+      String msg;
+      switch (e.code) {
+        case 'email-already-in-use':
+          msg =
+              widget.isEnglish ? 'The email is already in use.' : '該電子郵件已被使用。';
+          break;
+        case 'invalid-email':
+          msg = widget.isEnglish ? 'Invalid email format.' : '電子郵件格式無效。';
+          break;
+        case 'weak-password':
+          msg = widget.isEnglish ? 'The password is too weak.' : '密碼太弱。';
+          break;
+        default:
+          msg =
+              widget.isEnglish
+                  ? 'Registration failed: ${e.message}'
+                  : '註冊失敗：${e.message}';
       }
-
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(errorMessage)));
-      }
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              widget.isEnglish ? 'An error occurred: $e' : '發生錯誤：$e',
-            ),
-          ),
-        );
-      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(widget.isEnglish ? 'An error occurred: $e' : '發生錯誤：$e'),
+        ),
+      );
     } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
   Future<void> _signInWithGoogle() async {
-    try {
-      final GoogleSignIn googleSignIn =
-          kIsWeb
-              ? GoogleSignIn(
-                clientId:
-                    '483152981384-82gv1o0baejlppm0ouqj10ppdj56i7ov.apps.googleusercontent.com',
-              )
-              : GoogleSignIn();
+    if (_isLoading) return;
+    setState(() => _isLoading = true);
 
-      final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
-      if (googleUser == null) {
-        return;
+    try {
+      UserCredential cred;
+      if (kIsWeb) {
+        cred = await FirebaseAuth.instance.signInWithPopup(
+          GoogleAuthProvider(),
+        );
+      } else {
+        final google = GoogleSignIn();
+        final account = await google.signIn();
+        if (account == null) return;
+        final auth = await account.authentication;
+        final credential = GoogleAuthProvider.credential(
+          accessToken: auth.accessToken,
+          idToken: auth.idToken,
+        );
+        cred = await FirebaseAuth.instance.signInWithCredential(credential);
       }
 
-      final GoogleSignInAuthentication googleAuth =
-          await googleUser.authentication;
-      final credential = GoogleAuthProvider.credential(
-        accessToken: googleAuth.accessToken,
-        idToken: googleAuth.idToken,
-      );
-
-      final UserCredential userCredential = await FirebaseAuth.instance
-          .signInWithCredential(credential);
-      final User? user = userCredential.user;
-
-      if (user != null && mounted) {
+      if (!mounted) return;
+      final user = cred.user;
+      if (user != null) {
         Navigator.pushReplacementNamed(
           context,
           '/home',
@@ -133,11 +125,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
             content: Text(
               widget.isEnglish
                   ? 'Google registration failed: $e'
-                  : 'Google 註冊失敗: $e',
+                  : 'Google 註冊失敗：$e',
             ),
           ),
         );
       }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -148,102 +142,174 @@ class _RegisterScreenState extends State<RegisterScreen> {
     super.dispose();
   }
 
+  // ---------- UI helpers ----------
+  InputDecoration _pillDecoration({
+    required String label,
+    required String hint,
+  }) {
+    const pillRadius = 28.0;
+    return InputDecoration(
+      labelText: label,
+      hintText: hint,
+      labelStyle: const TextStyle(color: Colors.white70, fontSize: 14),
+      hintStyle: const TextStyle(color: Colors.white60),
+      filled: true,
+      // 半透明白，疊在背景上（使用 withValues）
+      fillColor: Colors.white.withValues(alpha: 0.16),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(pillRadius),
+        borderSide: BorderSide(
+          color: Colors.white.withValues(alpha: 0.6),
+          width: 1.2,
+        ),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(pillRadius),
+        borderSide: const BorderSide(color: Color(0xFF91D5FF), width: 1.8),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final title = widget.isEnglish ? 'Sign Up' : '註冊';
+    final emailLabel = widget.isEnglish ? 'Email' : '電子郵件';
+    final pwdLabel = widget.isEnglish ? 'Password' : '密碼';
+    final quick = widget.isEnglish ? 'Quick Sign Up' : '快速註冊';
+    final haveAcc = widget.isEnglish ? 'Already have an account? ' : '已經有帳號了？';
+    final login = widget.isEnglish ? 'Log in' : '點我登入';
+
     return Scaffold(
-      appBar: AppBar(title: Text(widget.isEnglish ? 'Sign Up' : '註冊')),
-      body: Container(
-        decoration: BoxDecoration(
-          image: DecorationImage(
-            image: AssetImage('assets/picture/bg.jpg'),
-            fit: BoxFit.cover,
+      appBar: AppBar(title: Text(title)),
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          // 背景圖
+          Image.asset('assets/picture/bg.jpg', fit: BoxFit.cover),
+          // 深色遮罩：讓背景暗淡（用 withValues）
+          Container(
+            color: Colors.black.withValues(alpha: 0.42), // 想更暗：0.50；更亮：0.30
           ),
-        ),
-        child: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24.0),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  widget.isEnglish ? 'Sign Up' : '註冊',
-                  style: const TextStyle(
-                    fontSize: 32,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 20),
-                TextField(
-                  controller: _emailController,
-                  decoration: InputDecoration(
-                    hintText: widget.isEnglish ? 'Email' : '郵箱',
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
+
+          // 內容
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24.0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // ---------- 電子郵件 ----------
+                  TextField(
+                    controller: _emailController,
+                    keyboardType: TextInputType.emailAddress,
+                    style: const TextStyle(color: Colors.white),
+                    cursorColor: Colors.white,
+                    decoration: _pillDecoration(
+                      label: emailLabel,
+                      hint: widget.isEnglish ? 'Enter your email' : '輸入你的電子郵件',
                     ),
-                    filled: true,
-                    fillColor: Colors.grey[200],
                   ),
-                  keyboardType: TextInputType.emailAddress,
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: _passwordController,
-                  obscureText: true,
-                  decoration: InputDecoration(
-                    hintText: widget.isEnglish ? 'Password' : '密碼',
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
+                  const SizedBox(height: 14),
+                  // ---------- 密碼 ----------
+                  TextField(
+                    controller: _passwordController,
+                    obscureText: true,
+                    style: const TextStyle(color: Colors.white),
+                    cursorColor: Colors.white,
+                    decoration: _pillDecoration(
+                      label: pwdLabel,
+                      hint: widget.isEnglish ? 'Enter your password' : '輸入你的密碼',
                     ),
-                    filled: true,
-                    fillColor: Colors.grey[200],
                   ),
-                ),
-                const SizedBox(height: 20),
-                SizedBox(
-                  width: double.infinity,
-                  height: 50,
-                  child: ElevatedButton(
-                    onPressed: _isLoading ? null : _registerWithEmail,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                    child:
-                        _isLoading
-                            ? const CircularProgressIndicator(
-                              color: Colors.white,
-                            )
-                            : Text(
-                              widget.isEnglish ? 'Sign Up' : '註冊',
-                              style: const TextStyle(
-                                fontSize: 18,
-                                color: Colors.white,
-                              ),
+                  const SizedBox(height: 22),
+
+                  // ---------- 圓形箭頭按鈕 + 文案 ----------
+                  Column(
+                    children: [
+                      SizedBox(
+                        width: 64,
+                        height: 64,
+                        child: ElevatedButton(
+                          onPressed: _isLoading ? null : _registerWithEmail,
+                          style: ElevatedButton.styleFrom(
+                            shape: const CircleBorder(),
+                            elevation: 3,
+                            backgroundColor: Colors.white.withValues(
+                              alpha: 0.18,
                             ),
+                            shadowColor: Colors.black26,
+                            padding: EdgeInsets.zero,
+                            side: BorderSide(
+                              color: Colors.white.withValues(alpha: 0.7),
+                              width: 1.4,
+                            ),
+                          ),
+                          child:
+                              _isLoading
+                                  ? const SizedBox(
+                                    width: 22,
+                                    height: 22,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2.4,
+                                      color: Colors.white,
+                                    ),
+                                  )
+                                  : const Icon(
+                                    Icons.arrow_forward,
+                                    color: Colors.white,
+                                    size: 28,
+                                  ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        quick,
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-                const SizedBox(height: 20),
-                Row(
-                  children: [
-                    Expanded(child: Divider(thickness: 1)),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 10),
-                      child: Text(widget.isEnglish ? 'or' : '或'),
-                    ),
-                    Expanded(child: Divider(thickness: 1)),
-                  ],
-                ),
-                const SizedBox(height: 20),
-                IconButton(
-                  onPressed: _signInWithGoogle,
-                  icon: Image.asset("assets/icons/google.png", width: 40),
-                ),
-              ],
+                  // ---------- Google 按鈕 ----------
+                  IconButton(
+                    onPressed: _isLoading ? null : _signInWithGoogle,
+                    icon: Image.asset("assets/icons/google.png", width: 40),
+                    tooltip: 'Google',
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  // ---------- 登入連結 ----------
+                  Wrap(
+                    alignment: WrapAlignment.center,
+                    children: [
+                      Text(
+                        haveAcc,
+                        style: const TextStyle(color: Colors.white70),
+                      ),
+                      InkWell(
+                        onTap: () {
+                          Navigator.pushReplacementNamed(context, '/login');
+                        },
+                        child: Text(
+                          login,
+                          style: const TextStyle(
+                            color: Colors.lightBlueAccent,
+                            decoration: TextDecoration.underline,
+                            decorationThickness: 1.6,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
-        ),
+        ],
       ),
     );
   }

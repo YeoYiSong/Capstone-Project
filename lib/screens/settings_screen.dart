@@ -1,17 +1,15 @@
 import 'package:flutter/material.dart';
 
+typedef DiaryLockChanged = void Function(bool isLocked, {String? password});
+
 class SettingsScreen extends StatelessWidget {
-  final bool isDarkTheme;
-  final void Function(bool) onThemeChanged;
   final bool isEnglish;
   final void Function(bool) onLanguageChanged;
   final bool isDiaryLocked;
-  final void Function(bool, {String? password}) onDiaryLockChanged;
+  final DiaryLockChanged onDiaryLockChanged;
 
   const SettingsScreen({
     super.key,
-    required this.isDarkTheme,
-    required this.onThemeChanged,
     required this.isEnglish,
     required this.onLanguageChanged,
     required this.isDiaryLocked,
@@ -22,7 +20,7 @@ class SettingsScreen extends StatelessWidget {
     final TextEditingController passwordController = TextEditingController();
     showDialog(
       context: context,
-      builder: (context) {
+      builder: (dialogCtx) {
         return AlertDialog(
           title: Text(isEnglish ? 'Set Diary Password' : '設定本子密碼'),
           content: TextField(
@@ -35,7 +33,7 @@ class SettingsScreen extends StatelessWidget {
           actions: [
             TextButton(
               onPressed: () {
-                Navigator.pop(context);
+                Navigator.pop(dialogCtx);
                 onDiaryLockChanged(false);
               },
               child: Text(isEnglish ? 'Cancel' : '取消'),
@@ -45,8 +43,9 @@ class SettingsScreen extends StatelessWidget {
                 final password = passwordController.text;
                 if (password.isNotEmpty) {
                   onDiaryLockChanged(true, password: password);
-                  Navigator.pop(context);
+                  Navigator.pop(dialogCtx);
                 } else {
+                  // 用外層 ScaffoldMessenger 顯示提示
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                       content: Text(
@@ -86,23 +85,11 @@ class SettingsScreen extends StatelessWidget {
               title: Text(isEnglish ? 'Password Settings' : '密碼設定'),
               onTap: () {},
             ),
-            ListTile(
-              title: Text(isEnglish ? 'Theme (Light/Dark)' : '主題（明/暗）'),
-              trailing: Switch(
-                value: isDarkTheme,
-                onChanged: (value) {
-                  onThemeChanged(value);
-                },
-              ),
-            ),
+
+            // 🔻 已移除：主題（明/暗）切換
             ListTile(
               title: Text(isEnglish ? 'Language (Ch/En)' : '語言（中/英）'),
-              trailing: Switch(
-                value: isEnglish,
-                onChanged: (value) {
-                  onLanguageChanged(value);
-                },
-              ),
+              trailing: Switch(value: isEnglish, onChanged: onLanguageChanged),
             ),
             ListTile(
               title: Text(isEnglish ? 'Notification Settings' : '通知設定'),

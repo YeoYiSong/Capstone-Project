@@ -5,33 +5,31 @@ publish_to: 'none'
 version: 1.0.0+1
 
 environment:
-  sdk: ^3.7.0
+  sdk: ">=3.8.0 <4.0.0"
 
 dependencies:
   flutter:
     sdk: flutter
-  flutter_svg: ^2.0.9  
+  flutter_svg: 2.2.1
   cupertino_icons: ^1.0.8
-  url_launcher: ^6.0.9 
+  url_launcher: 6.3.2
   google_fonts: ^6.2.1
-  firebase_core: ^3.6.0
-  firebase_auth: ^5.3.1
-  google_sign_in: ^6.2.1
+  firebase_core: 4.1.0
+  firebase_auth: 6.0.2
+  google_sign_in: 6.2.1
   flutter_facebook_auth: ^7.1.2
-  audioplayers: ^6.5.0
+  audioplayers: 6.5.1
   table_calendar: ^3.0.9
-  intl: ^0.19.0
+  intl: ^0.20.2
   mysql1: ^0.20.0
-  http: ^1.1.0
+  http: 1.5.0
   shared_preferences: ^2.3.0
-  
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^5.0.0
-  
-  
+  flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.13.1
 
 flutter:
   uses-material-design: true
@@ -45,19 +43,19 @@ flutter:
     - assets/picture/chatbot.png
     - assets/picture/breathing.jpg
     - assets/picture/setting.jpg
+    - assets/picture/fullleaf.png
+    - assets/picture/halfleaf.png
+    - assets/picture/flyleaf.png
     - assets/icons/fb.png
     - assets/icons/google.png
-    - assets/icons/interface_loading_circle.svg
-    - assets/icons/interface_navigation_left_circle.svg
     - assets/breath/breathing_guide.mp4
     - assets/breath/intro.mp3
     - assets/breath/guide.mp3
     - assets/scenario_music/relaxing-smoothed-brown-noise.mp3
     - assets/scenario_music/soft-brown-noise-.mp3
     - assets/scenario_music/soothing-deep-noise-.mp3
-<<<<<<< HEAD
-
-=======
+    - assets/scenario_music/rain-on-window-white-noise.mp3
+    - assets/scenario_music/taiwan-blue-magpie-dawn-calls.mp3
     - assets/oils/1.jpg
     - assets/oils/2.jpg
     - assets/oils/3.jpg
@@ -78,8 +76,9 @@ flutter:
     - assets/oils/18.jpg
     - assets/oils/19.jpg
     - assets/oils/20.jpg
->>>>>>> d1ff696678951b3ed1799dfa6209ce0a6a2d3254
-  fonts:
-    - family: PixelFont
-      fonts:
-        - asset: assets/fonts/pixel.ttf 
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/icons/smiley2.png"
+  min_sdk_android: 21

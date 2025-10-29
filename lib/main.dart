@@ -51,16 +51,9 @@ class Smaily2App extends StatefulWidget {
 }
 
 class _Smaily2AppState extends State<Smaily2App> {
-  bool _isDarkTheme = false;
   bool _isEnglish = false;
   bool _isDiaryLocked = false;
   String? _diaryPassword;
-
-  void _toggleTheme(bool isDark) {
-    setState(() {
-      _isDarkTheme = isDark;
-    });
-  }
 
   void _toggleLanguage(bool isEnglish) {
     setState(() {
@@ -83,23 +76,13 @@ class _Smaily2AppState extends State<Smaily2App> {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Smaily',
-      theme:
-          _isDarkTheme
-              ? ThemeData(
-                fontFamily: 'PixelFont',
-                brightness: Brightness.dark,
-                primarySwatch: Colors.blue,
-                scaffoldBackgroundColor: Colors.grey[900],
-                textTheme: const TextTheme(
-                  bodyMedium: TextStyle(color: Colors.white),
-                ),
-              )
-              : ThemeData(
-                fontFamily: 'PixelFont',
-                brightness: Brightness.light,
-                primarySwatch: Colors.blue,
-                scaffoldBackgroundColor: Colors.white,
-              ),
+      // ✅ 固定使用淺色主題
+      theme: ThemeData(
+        fontFamily: 'PixelFont',
+        brightness: Brightness.light,
+        primarySwatch: Colors.blue,
+        scaffoldBackgroundColor: Colors.white,
+      ),
       locale: _isEnglish ? const Locale('en', 'US') : const Locale('zh', 'CN'),
       initialRoute: '/',
       routes: {
@@ -107,18 +90,12 @@ class _Smaily2AppState extends State<Smaily2App> {
         '/login': (context) => LoginScreen(isEnglish: _isEnglish),
         '/register': (context) => RegisterScreen(isEnglish: _isEnglish),
         '/home':
-            (context) => HomeScreen(
-              username: 'jiuke',
-              onThemeChanged: _toggleTheme,
-              isEnglish: _isEnglish,
-            ),
+            (context) => HomeScreen(username: 'jiuke', isEnglish: _isEnglish),
         '/diary': (context) => DiaryScreen(isEnglish: _isEnglish),
         '/chatbot': (context) => ChatbotScreen(isEnglish: _isEnglish),
         '/breathing': (context) => BreathingScreen(isEnglish: _isEnglish),
         '/settings':
             (context) => SettingsScreen(
-              isDarkTheme: _isDarkTheme,
-              onThemeChanged: _toggleTheme,
               isEnglish: _isEnglish,
               onLanguageChanged: _toggleLanguage,
               isDiaryLocked: _isDiaryLocked,
@@ -130,7 +107,7 @@ class _Smaily2AppState extends State<Smaily2App> {
               diaryPassword: _diaryPassword,
               isEnglish: _isEnglish,
             ),
-        '/store': (context) => const StoreScreen(),
+        '/store': (context) => StoreScreen(isEnglish: _isEnglish),
         '/scenario': (context) => ScenarioModeScreen(isEnglish: _isEnglish),
       },
     );

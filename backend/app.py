@@ -3,17 +3,17 @@ from flask_cors import CORS
 import mysql.connector
 from mysql.connector import Error
 import json
-from datetime import datetime
+from datetime import datetime, timedelta,date
+import time
 from flask_session import Session
 import requests
 import contextlib
 import chromadb
 import re
-<<<<<<< HEAD
-=======
 import uuid
->>>>>>> d1ff696678951b3ed1799dfa6209ce0a6a2d3254
 from itertools import chain
+from typing import Callable, Type, Tuple
+
 
 app = Flask(__name__)
 CORS(app, supports_credentials=True)
@@ -37,7 +37,20 @@ col = client.get_or_create_collection(name="essential_oils")
 OLLAMA_CHAT_URL = 'http://localhost:11434/api/chat'
 OLLAMA_EMBED_URL = 'http://localhost:11434/api/embed'
 EMBED_MODEL = 'nn200433/text2vec-bge-large-chinese'
-
+def retry(fn: Callable, retries: int = 3, backoffs: Tuple[float, ...]=(0.5, 1, 2),
+          exceptions: Tuple[Type[Exception], ...]=(Exception,), on_err=None):
+    last_e = None
+    for i in range(retries):
+        try:
+            return fn()
+        except exceptions as e:
+            last_e = e
+            if on_err:
+                try: on_err(e, i+1)
+                except: pass
+            if i < retries - 1:
+                time.sleep(backoffs[min(i, len(backoffs)-1)])
+    raise last_e
 def get_db_connection():
     try:
         connection = mysql.connector.connect(**db_config)
@@ -222,6 +235,45 @@ def save_diary_entry():
     finally:
         cursor.close()
         connection.close()
+
+def _parse_date(s: str) -> date:
+    return datetime.strptime(s, "%Y-%m-%d").date()
+
+@app.get("/diary/exists")
+def diary_exists():
+    # 允許從 query 讀 user_id（前端會帶），否則落回 session
+    uid = request.args.get("user_id") or session.get("user_id")
+    if not uid:
+        return jsonify({"error": "UNAUTHENTICATED"}), 401
+
+    iso = (request.args.get("date") or "").strip()   # 期待 'YYYY-MM-DD'
+    if not iso:
+        return jsonify({"error": "MISSING_DATE"}), 400
+
+    try:
+        _parse_date(iso)  # 驗證格式
+    except ValueError:
+        return jsonify({"error": "BAD_DATE_FORMAT", "hint": "YYYY-MM-DD"}), 400
+
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        # ✅ diaries 沒有 type，僅比對日期與 user_id
+        cur.execute(
+            """
+            SELECT 1
+            FROM diaries
+            WHERE user_id=%s AND LEFT(create_at, 10)=%s
+            LIMIT 1
+            """,
+            (uid, iso),
+        )
+        row = cur.fetchone()
+        cur.close()
+        conn.close()
+        return jsonify({"exists": bool(row)}), 200
+    except Exception as e:
+        return jsonify({"error": "SERVER_ERROR", "message": str(e)}), 500
 
 @app.route('/get_diary_entries/<date>', methods=['GET'])
 def get_diary_entries(date):
@@ -473,20 +525,10 @@ def get_user_id():
 
 # ============ 取得/設定目前聊天室名稱 ============
 def get_current_name():
-<<<<<<< HEAD
-    uid = get_user_id()
-    key = f'current_conv_{uid}'
-    if key not in session:
-        new_name = f"untitled_{datetime.now().strftime('%H%M%S')}"
-        session[key] = new_name
-        session[f'ai_titled_{uid}'] = False  
-    return session.get(key, 'default')
-=======
     try:
         return (request.json or {}).get('conversation', 'default')
     except Exception:
         return 'default'
->>>>>>> d1ff696678951b3ed1799dfa6209ce0a6a2d3254
 
 
 # ============ 取得/儲存當前聊天室訊息 ============
@@ -578,16 +620,7 @@ def ai_generate_title(first_message):
 @app.route('/switch', methods=['POST'])
 def switch_conversation():
     user_id = get_user_id()
-<<<<<<< HEAD
-    name = request.json.get('conversation', '').strip() or 'default'
-    session[f'ai_titled_{user_id}'] = not name.startswith('untitled_')
-    set_current_name(name)
-    key = f'messages_{user_id}_{name}'
-    if key not in session:
-        session[key] = []
-=======
     name = request.json.get('conversation', '').strip() or f"untitled_{datetime.now().strftime('%H%M%S')}"
->>>>>>> d1ff696678951b3ed1799dfa6209ce0a6a2d3254
     return jsonify({'status': 'switched', 'conversation': name})
 
 # ============ 重設目前聊天室內容 ============
@@ -639,33 +672,6 @@ def delete_conversation():
         conn.close()
 
 
-# ============ 刪除聊天室 ============
-@app.route('/delete', methods=['POST'])
-def delete_conversation():
-    user_id = get_user_id()
-    if not user_id:
-        return jsonify({'error': 'Missing user_id'}), 400
-    conversation = request.json.get('conversation')
-    if not conversation or conversation == 'default':
-        return jsonify({'error': 'Cannot delete default conversation'}), 400
-
-    conn = get_db_connection()
-    if conn is None:
-        return jsonify({'error': 'Database connection failed'}), 500
-
-    try:
-        cursor = conn.cursor()
-        query = "DELETE FROM robot_chat_history WHERE user_id = %s AND conversation = %s"
-        cursor.execute(query, (user_id, conversation))
-        conn.commit()
-        return jsonify({'status': 'deleted'}), 200
-    except Error as e:
-        return jsonify({'error': f'Failed to delete conversation: {e}'}), 500
-    finally:
-        cursor.close()
-        conn.close()
-
-
 # ============ 取得該用戶所有聊天室清單 ============
 @app.route('/conversations', methods=['GET'])
 def list_conversations():
@@ -679,11 +685,7 @@ def list_conversations():
         sql = "SELECT DISTINCT conversation FROM robot_chat_history WHERE user_id=%s"
         cursor.execute(sql, (user_id,))
         conversations = [row[0] for row in cursor.fetchall()]
-<<<<<<< HEAD
-        current = session.get(f'current_conv_{user_id}', 'default')
-=======
         current = session.get(f'current_conv_{user_id}', 'untitled_')
->>>>>>> d1ff696678951b3ed1799dfa6209ce0a6a2d3254
         if current not in conversations:
             conversations.append(current)
         return jsonify({
@@ -732,20 +734,8 @@ def chat():
     if not original_conversation:
         original_conversation = 'untitled_' + str(uuid.uuid4())[:8]
 
-<<<<<<< HEAD
-    messages = get_messages()
-    if not messages:
-        messages.append({
-            'role': 'system',
-            'content': (
-                '你是一位親切、有耐心的朋友，請用繁體中文和我聊天。'
-                '不用太正式，像平常朋友聊天一樣就好，溫暖、有共鳴，讓我覺得被理解就好。'
-            )
-        })
-=======
     # --- Step 1: 從 session 中查詢 conversation 是否已經被改名過 ---
     conversation = session.get(f'conv_name_map_{user_id}_{original_conversation}', original_conversation)
->>>>>>> d1ff696678951b3ed1799dfa6209ce0a6a2d3254
 
     # --- Step 2: 檢查是否為第一次 AI 回應 ---
     conn = get_db_connection()
@@ -774,33 +764,11 @@ def chat():
     # --- 儲存使用者訊息 ---
     save_message_to_db(user_id, conversation, 'user', user_message)
 
-<<<<<<< HEAD
-    send_conv_name = None
-    if is_new_conv and not ai_titled:
-        title = ai_generate_title(user_message)
-        update_conversation_name(user_id, conversation, title)
-        set_current_name(title)
-        session[f'ai_titled_{user_id}'] = True
-        session[f'messages_{user_id}_{title}'] = session.pop(f'messages_{user_id}_{conversation}')
-        conversation = title
-        send_conv_name = title  # 用來稍後 yield CONVERSATION_NAME
-
-    trimmed = [m for m in messages if m['role'] != 'system']
-    session_msgs = messages[:1] + trimmed[-6:]
-    save_messages(messages)
-
-    payload = {
-        'model': 'gemma3:12b',
-        'messages': session_msgs,
-        'stream': True
-    }
-=======
     # --- 撈取歷史訊息 ---
     history = get_messages(user_id, conversation)
     messages = [{'role': 'system', 'content': '你是一位親切、有耐心的朋友，請用繁體中文和我聊天。'
                 '不用太正式，像平常朋友聊天一樣就好，溫暖、有共鳴，讓我覺得被理解就好。'}] + history + [
                    {'role': 'user', 'content': user_message}]
->>>>>>> d1ff696678951b3ed1799dfa6209ce0a6a2d3254
 
     payload = {'model': 'gemma3:12b', 'messages': messages, 'stream': True}
     full_response = {'value': ''}
@@ -828,12 +796,6 @@ def chat():
     if send_conv_name:
         def name_stream():
             yield f"CONVERSATION_NAME:{send_conv_name}\n"
-<<<<<<< HEAD
-
-        return Response(stream_with_context(chain(name_stream(), generate())), content_type='text/plain')
-    else:
-        return Response(generate(), content_type='text/plain')
-=======
         return Response(stream_with_context(chain(name_stream(), generate())), content_type='text/plain')
     else:
         return Response(generate(), content_type='text/plain')
@@ -945,7 +907,6 @@ def ai_generate_title_en(first_message: str) -> str:
     except Exception:
         return "Untitled Chat"
 
->>>>>>> d1ff696678951b3ed1799dfa6209ce0a6a2d3254
 
 # ============ 產生並儲存摘要 ============
 @app.route('/finalize', methods=['POST'])
@@ -1028,11 +989,6 @@ def generate_summary(messages):
         return f"[摘要失敗：{e}]"
 
 # ============ 儲存摘要到資料庫 ============
-<<<<<<< HEAD
-def save_summary_to_db(user_id, summary):
-    sql = "INSERT INTO robot_chat (user_id, summary, keywords, emotion_tag) VALUES (%s, %s, %s, %s)"
-    val = (user_id, summary, '', '')
-=======
 def save_summary_to_db(user_id, summary, themes=None, conversation=None, emotion=None):
     sql = "INSERT INTO robot_chat (user_id, summary, keywords, emotion_tag, conversation) VALUES (%s, %s, %s, %s, %s)"
     val = (
@@ -1042,7 +998,6 @@ def save_summary_to_db(user_id, summary, themes=None, conversation=None, emotion
         emotion or '',
         conversation or ''
     )
->>>>>>> d1ff696678951b3ed1799dfa6209ce0a6a2d3254
     conn = get_db_connection()
     if conn is None:
         return
@@ -1052,24 +1007,27 @@ def save_summary_to_db(user_id, summary, themes=None, conversation=None, emotion
             conn.commit()
     finally:
         conn.close()
-<<<<<<< HEAD
-=======
 
->>>>>>> d1ff696678951b3ed1799dfa6209ce0a6a2d3254
 
 # --- 用 OLLAMA 取得文字向量 ---
 def embed_text(text):
-    resp = requests.post(
-        OLLAMA_EMBED_URL,
-        json={'model': EMBED_MODEL, 'input': text}
-    )
-    data = resp.json()
-    if 'error' in data:
-        raise RuntimeError(f"Ollama 回傳錯誤: {data['error']}")
-    vecs = data.get('embeddings') or data.get('embedding')
-    if vecs is None:
-        raise RuntimeError(f"Embed API 回傳格式異常: {data}")
-    return vecs[0] if isinstance(vecs[0], list) else vecs
+    def _call():
+        resp = requests.post(
+            OLLAMA_EMBED_URL,
+            json={'model': EMBED_MODEL, 'input': text},
+            timeout=60  
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        if 'error' in data:
+            raise RuntimeError(f"Ollama Embed 錯誤: {data['error']}")
+        vecs = data.get('embeddings') or data.get('embedding')
+        if vecs is None:
+            raise RuntimeError(f"Embed API 回傳格式異常: {data}")
+        return vecs[0] if isinstance(vecs[0], list) else vecs
+
+    return retry(_call, retries=3)
+
 
 # --- 用 LLM 產生摘要與主題 ---
 def analyze_content_with_ai(diary):
@@ -1077,60 +1035,52 @@ def analyze_content_with_ai(diary):
         {
             "role": "system",
             "content": (
-                "你是一個只能輸出 JSON 的 AI 模型，請閱讀使用者的日記內容，"
-                "生成一段具有情緒、原因與內心反應的摘要，長度約 100-150 字。\n"
-                "並回傳以下 JSON 格式：\n"
-                "{\n"
-                "  \"summary\": \"（摘要文字）\",\n"
-                "  \"themes\": [\n"
-                "    \"請具體描述主題，例如：\",\n"
-                "    \"因為失眠導致情緒不穩\",\n"
-                "    \"與母親互動感到溫暖\",\n"
-                "    \"對未來不確定性感到焦慮\"\n"
-                "  ]\n"
-                "}\n"
-                "⚠️ 只能輸出 JSON，不能包含說明、標題或開場白。"
+                "優先輸出 JSON：{\"summary\":\"...\",\"themes\":[\"...\",\"...\"]}\n"
+                "若無法產出合法 JSON，也請至少先輸出 100-150 字連貫摘要（不含程式碼區塊）。"
             )
         },
-        {
-            "role": "user",
-            "content": diary
-        }
+        {"role": "user", "content": diary}
     ]
-
     payload = {
         'model': 'gemma3:12b',
         'messages': messages,
         'stream': False,
-        'options': {
-            'num_gpu': 1,
-            'low_vram': False,
-            'main_gpu': 0,
-            'num_ctx': 8192,
-            'num_thread': 12,
-            'keep_alive': -1
-        }
+        'options': {'num_ctx': 8192, 'keep_alive': -1}
     }
 
+    def _call():
+        r = requests.post(OLLAMA_API_URL, json=payload, timeout=120)  # 首呼適度放寬
+        r.raise_for_status()
+        try:
+            data = r.json()
+            content = (data.get("message", {}) or {}).get("content", "") or r.text
+        except Exception:
+            content = r.text
+        content = (content or "").strip()
+
+        # 先嘗試擷取淺層 JSON（避免貪婪）
+        m = re.search(r'\{[^{}]*\}', content, re.DOTALL)
+        if m:
+            try:
+                parsed = json.loads(m.group(0))
+                return {
+                    "summary": parsed.get("summary", "") or "",
+                    "themes": parsed.get("themes", []) or []
+                }
+            except Exception:
+                pass
+
+        # fallback：把模型輸出當純文字摘要用，避免空 summary 造成 400
+        text = re.sub(r'```.*?```', '', content, flags=re.DOTALL)
+        text = re.sub(r'\s+', ' ', text).strip()
+        text = text[:180]
+        return {"summary": text, "themes": []}
+
     try:
-        resp = requests.post(OLLAMA_CHAT_URL, json=payload, timeout=300)
-        resp.raise_for_status()
-        content = resp.json().get("message", {}).get("content", "").strip()
-        match = re.search(r'{.*}', content, re.DOTALL)
-        if not match:
-            raise json.JSONDecodeError("找不到 JSON 區段", content, 0)
-        clean_json = match.group(0)
-        parsed = json.loads(clean_json)
-        return {
-            "summary": parsed.get("summary", ""),
-            "themes": parsed.get("themes", [])
-        }
+        return retry(_call, retries=3)
     except Exception as e:
-        return {
-            "summary": "",
-            "themes": [],
-            "error": str(e)
-        }
+        return {"summary": "", "themes": [], "error": str(e)}
+
 
 # --- API: 今日情緒摘要與主題 ---
 @app.route('/analyze_today_all', methods=['GET'])
@@ -1194,27 +1144,29 @@ def analyze_today_all():
         "has_diary": bool(diary)
     })
 def get_today_summary(user_id):
-    today_str = datetime.now().strftime('%Y-%m-%d')
+    today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    tomorrow = today + timedelta(days=1)
+
     conn = get_db_connection()
     if conn is None:
         return None
-
     try:
         cursor = conn.cursor(dictionary=True)
-
         cursor.execute("""
-            SELECT id, note, joy, sadness, anger, positive, anxiety, exhaust
+            SELECT id, note, joy, sadness, anger, positive, anxiety, exhaust, create_at
             FROM now
-            WHERE DATE(create_at) = %s AND user_id = %s
-        """, (today_str, user_id))
+            WHERE user_id=%s AND create_at >= %s AND create_at < %s
+            ORDER BY create_at ASC
+        """, (user_id, today, tomorrow))
         now_records = cursor.fetchall()
 
         cursor.execute("""
-            SELECT id, content, joy, sadness, anger, positive, anxiety, exhaust
+            SELECT id, content, joy, sadness, anger, positive, anxiety, exhaust, create_at
             FROM diaries
-            WHERE DATE(create_at) = %s AND user_id = %s
+            WHERE user_id=%s AND create_at >= %s AND create_at < %s
+            ORDER BY create_at ASC
             LIMIT 1
-        """, (today_str, user_id))
+        """, (user_id, today, tomorrow))
         diary = cursor.fetchone()
     finally:
         conn.close()
@@ -1222,26 +1174,29 @@ def get_today_summary(user_id):
     if not now_records and not diary:
         return None
 
-    all_text = ""
+    parts = []
     if diary:
-        all_text += (
-            f"【今日日記】\n內容：{diary['content']}\n"
-            f"情緒指標：喜悅：{diary['joy']}，悲傷：{diary['sadness']}，"
-            f"憤怒：{diary['anger']}，正向：{diary['positive']}，"
-            f"焦慮：{diary['anxiety']}，疲憊：{diary['exhaust']}\n\n"
+        parts.append(
+            f"【今日日記】\n內容：{diary['content']}\n情緒指標：喜悅：{diary['joy']}，悲傷：{diary['sadness']}，"
+            f"憤怒：{diary['anger']}，正向：{diary['positive']}，焦慮：{diary['anxiety']}，疲憊：{diary['exhaust']}\n"
         )
-    for idx, rec in enumerate(now_records, start=1):
-        all_text += (
-            f"【即時紀錄{idx}】\n內容：{rec['note']}\n"
-            f"情緒指標：喜悅：{rec['joy']}，悲傷：{rec['sadness']}，"
-            f"憤怒：{rec['anger']}，正向：{rec['positive']}，"
-            f"焦慮：{rec['anxiety']}，疲憊：{rec['exhaust']}\n\n"
+    for idx, rec in enumerate(now_records, 1):
+        parts.append(
+            f"【即時紀錄{idx}】\n內容：{rec['note']}\n情緒指標：喜悅：{rec['joy']}，悲傷：{rec['sadness']}，"
+            f"憤怒：{rec['anger']}，正向：{rec['positive']}，焦慮：{rec['anxiety']}，疲憊：{rec['exhaust']}\n"
         )
+    parts.append("請根據今天所有日記與即時紀錄內容、情緒數值，產生一段全日總結（100-150字），並列出具體主題。")
 
-    all_text += "請根據今天所有日記與即時紀錄內容、情緒數值，產生一段全日總結（100-150字），並列出具體主題。"
+    return analyze_content_with_ai("\n".join(parts))
+def _warmup():
+    try:
+        requests.post(OLLAMA_API_URL, json={"model":"gemma3:12b","messages":[{"role":"user","content":"ping"}]}, timeout=5)
+    except: pass
+    try:
+        requests.post(OLLAMA_EMBED_URL, json={"model":EMBED_MODEL,"input":"warmup"}, timeout=5)
+    except: pass
 
-    return analyze_content_with_ai(all_text)
-
+_warmup()
 # 顯示所有精油清單
 # 顯示所有精油清單（改：用資料庫）
 @app.route('/get_all_oils', methods=['GET'])
@@ -1344,182 +1299,463 @@ def analyze():
         "diary": diary
     })
 
+def purge_outdated_recos(user_id: int | str):
+    """刪除這位使用者『不是今天』的所有推薦（自動換日重置）。"""
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            DELETE FROM user_daily_oil_recos
+            WHERE user_id = %s AND reco_date <> CURDATE()
+        """, (user_id,))
+        conn.commit()
+    finally:
+        try: conn.close()
+        except: pass
+
+def has_today_reco_for_oil(user_id: int | str, oil_id: int | str) -> bool:
+    """今天是否已經推薦過這支油。"""
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT 1
+            FROM user_daily_oil_recos
+            WHERE user_id = %s AND reco_date = CURDATE() AND oil_id = %s
+            LIMIT 1
+        """, (user_id, oil_id))
+        return cur.fetchone() is not None
+    finally:
+        try: conn.close()
+        except: pass
+
+def insert_today_reco(user_id: int | str, oil_id: int | str,
+                      reason: str | None, oil_desc: str | None,
+                      source: str | None):
+    """
+    寫入今天一筆推薦（若 unique 衝突就略過，以達成『同油不重複』）。
+    回傳 1=成功新增；0=已存在（被 INSERT IGNORE）。
+    """
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT IGNORE INTO user_daily_oil_recos
+                (user_id, reco_date, oil_id, reason, oil_desc, source, created_at)
+            VALUES
+                (%s, CURDATE(), %s, %s, %s, %s, NOW())
+        """, (user_id, oil_id, reason, oil_desc, source if source in ('day', 'now') else None))
+        conn.commit()
+        return cur.rowcount
+    finally:
+        try: conn.close()
+        except: pass
+
+def list_today_recos(user_id: int | str):
+    """取今天所有推薦清單（含油名與價格），給前端列表用。"""
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor(dictionary=True)
+        cur.execute("""
+            SELECT r.oil_id,
+                   o.name AS oil,
+                   o.price,
+                   r.reason,
+                   r.oil_desc,
+                   r.source,
+                   r.created_at
+            FROM user_daily_oil_recos r
+            JOIN oil o ON o.id = r.oil_id
+            WHERE r.user_id = %s AND r.reco_date = CURDATE()
+            ORDER BY r.created_at DESC
+        """, (user_id,))
+        return cur.fetchall()
+    finally:
+        try: conn.close()
+        except: pass
+
+# ====== 推薦三格策略：1 Day 固定 + 2 Now 會刷新 ======
+
+def _get_today_day_entry_text(user_id: str) -> str:
+    """抓今天的 Day 內容（僅 1 筆）。"""
+    conn = get_db_connection()
+    if conn is None:
+        return ""
+    try:
+        with conn.cursor(dictionary=True) as cur:
+            cur.execute("""
+                SELECT content
+                FROM diaries
+                WHERE user_id=%s AND DATE(create_at)=CURDATE()
+                ORDER BY create_at ASC
+                LIMIT 1
+            """, (user_id,))
+            row = cur.fetchone()
+            return (row or {}).get('content') or ""
+    except Exception:
+        return ""
+    finally:
+        try: conn.close()
+        except: pass
+
+
+def _get_today_now_text(user_id: str) -> str:
+    """把今天所有 Now 的 note 串起來供語義檢索/LLM 參考。"""
+    conn = get_db_connection()
+    if conn is None:
+        return ""
+    try:
+        with conn.cursor(dictionary=True) as cur:
+            cur.execute("""
+                SELECT note
+                FROM now
+                WHERE user_id=%s AND DATE(create_at)=CURDATE()
+                ORDER BY create_at ASC
+            """, (user_id,))
+            notes = [ (r.get('note') or "").strip() for r in cur.fetchall() ]
+            return "\n".join([n for n in notes if n])
+    except Exception:
+        return ""
+    finally:
+        try: conn.close()
+        except: pass
+
+
+def _embed_and_candidates(text: str, n_results: int=8) -> tuple[list[str], list[str]]:
+    """向量查詢候選文件與名稱（名稱=文件第一段『名稱：描述…』的名稱）"""
+    qvec = embed_text(text)
+    results = col.query(query_embeddings=[qvec], n_results=n_results)
+    docs = results.get('documents', [[]])[0]
+    names = [d.split('：', 1)[0].strip() for d in docs]
+    return docs, names
+
+
+def _llm_pick_oils(context_text: str, cand_docs: list[str], k: int=1) -> tuple[list[str], list[str]]:
+    """請 LLM 從候選中選 k 支，回傳 (names, reasons) 等長陣列。"""
+    candidates = "\n".join(f"{i+1}. {d}" for i, d in enumerate(cand_docs))
+    sys = (
+        "你是一位芳療專家。你只能從候選名單中選出精油，"
+        "並以 JSON 陣列輸出，每個元素格式："
+        "{\"oil\":\"精油名稱\",\"reason\":\"推薦理由（至少20字）\"}。"
+        "不得選名單以外的名稱。陣列長度必須等於請求的數量。"
+    )
+    messages = [
+        {"role": "system", "content": sys + f"\n候選精油：\n{candidates}"},
+        {"role": "user", "content": f"請選出 {k} 款最適合的精油。以下是今日內容：\n{context_text}"}
+    ]
+    payload = {'model': 'gemma3:12b', 'messages': messages, 'stream': False}
+    res = requests.post(OLLAMA_CHAT_URL, json=payload, timeout=180)
+    res.raise_for_status()
+    content = (res.json().get("message", {}) or {}).get("content", "").strip()
+
+    # 嘗試抓出 JSON 陣列
+    m = re.search(r'\[[\s\S]*\]', content)
+    if not m:
+        # fallback：抓第一個物件
+        m = re.search(r'\{[\s\S]*\}', content)
+        if not m:
+            raise RuntimeError(f"LLM 回傳不可解析：{content[:200]}")
+        arr = [json.loads(m.group(0))]
+    else:
+        arr = json.loads(m.group(0))
+
+    names = []
+    reasons = []
+    for obj in arr:
+        name = (obj.get("oil") or "").strip()
+        reason = (obj.get("reason") or "").strip()
+        if name:
+            names.append(name)
+            reasons.append(reason or "與今日內容高度相關，適合舒緩情緒。")
+
+    # 尺寸防呆：不足就截/補空字串
+    names = names[:k] + [""]*(k - len(names))
+    reasons = reasons[:k] + [""]*(k - len(reasons))
+    return names, reasons
+
+
+def _find_oil_id_and_descs(names: list[str], cand_docs: list[str]) -> tuple[dict, dict]:
+    """把名稱 -> (id, 描述) 映射找出來（描述從 cand_docs 取第一個匹配）。"""
+    id_map = {}
+    desc_map = {}
+    if not names:
+        return id_map, desc_map
+
+    # 先湊描述
+    for nm in names:
+        desc = next((d for d in cand_docs if d.startswith(nm)), "")
+        desc_map[nm] = desc or "查無精油功效"
+
+    # 再查 DB 拿 id
+    conn = get_db_connection()
+    if conn is None:
+        # 沒 DB 就讓 id 都缺失，呼叫端需要 try/except
+        return id_map, desc_map
+    try:
+        with conn.cursor(dictionary=True) as cur:
+            qmarks = ",".join(["%s"]*len(names))
+            cur.execute(f"SELECT id, name FROM oil WHERE name IN ({qmarks})", tuple(names))
+            for row in cur.fetchall():
+                id_map[row['name']] = int(row['id'])
+        return id_map, desc_map
+    finally:
+        try: conn.close()
+        except: pass
+
+
+def _replace_today_day_reco(user_id: str, oil_id: int, reason: str, oil_desc: str):
+    """把今天的 Day 推薦（source='day'）覆蓋為這一支；只保留 1 筆 Day。"""
+    conn = get_db_connection()
+    if conn is None:
+        return
+    try:
+        with conn.cursor() as cur:
+            # 先刪今天所有 day，再插入 1 筆
+            cur.execute("""
+                DELETE FROM user_daily_oil_recos
+                WHERE user_id=%s AND reco_date=CURDATE() AND source='day'
+            """, (user_id,))
+            cur.execute("""
+                INSERT INTO user_daily_oil_recos
+                    (user_id, reco_date, oil_id, reason, oil_desc, source, created_at)
+                VALUES (%s, CURDATE(), %s, %s, %s, 'day', NOW())
+            """, (user_id, oil_id, reason, oil_desc))
+            conn.commit()
+    finally:
+        try: conn.close()
+        except: pass
+
+
+def _get_today_day_oil_ids(user_id: str) -> set[int]:
+    """取今天已固定的 day 精油 id（0~1 筆）。"""
+    conn = get_db_connection()
+    if conn is None:
+        return set()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT oil_id
+                FROM user_daily_oil_recos
+                WHERE user_id=%s AND reco_date=CURDATE() AND source='day'
+            """, (user_id,))
+            return { int(r[0]) for r in cur.fetchall() if r and r[0] is not None }
+    finally:
+        try: conn.close()
+        except: pass
+
+
+def _replace_today_now_recos(user_id: str, pairs: list[tuple[int,str,str,str]]):
+    """
+    覆蓋今天的兩格 Now（source='now'）為 pairs 前兩筆。
+    pairs: [(oil_id, name, reason, desc), ...]
+    """
+    conn = get_db_connection()
+    if conn is None:
+        return
+    try:
+        with conn.cursor() as cur:
+            # 清掉今天所有 now
+            cur.execute("""
+                DELETE FROM user_daily_oil_recos
+                WHERE user_id=%s AND reco_date=CURDATE() AND source='now'
+            """, (user_id,))
+            # 插回最多兩筆
+            for oil_id, _nm, reason, desc in pairs[:2]:
+                cur.execute("""
+                    INSERT INTO user_daily_oil_recos
+                        (user_id, reco_date, oil_id, reason, oil_desc, source, created_at)
+                    VALUES (%s, CURDATE(), %s, %s, %s, 'now', NOW())
+                """, (user_id, oil_id, reason, desc))
+            conn.commit()
+    finally:
+        try: conn.close()
+        except: pass
+
 @app.route('/recommend_today_oil', methods=['GET'])
 def recommend_today_oil():
+    """
+    三格制：
+      - 一格保留給 Day（寫 Day 時觸發，固定不刷新直到隔天）
+      - 兩格給 Now（每次寫 Now 觸發，會重新讀完今天所有 Now 重新挑 2 支覆蓋）
+    每天換日清空：沿用 purge_outdated_recos。
+    """
+
+    def _json_error(msg: str, code: int = 400):
+        app.logger.warning(f"/recommend_today_oil error: {msg}")
+        return jsonify({"status": "error", "error": msg}), code
+
+    # ★ 1) 參數解析：user_id 轉 int、source 正規化
+    user_id = request.args.get('user_id', type=int)
+    source = (request.args.get('source') or '').strip().lower()  # 'day' | 'now'
+    if not user_id:
+        return _json_error("請帶上 user_id（必須為整數）")
+    if source not in ('day', 'now'):
+        return _json_error("source 只能為 day 或 now")
+
+    # ★ 2) 先清掉非今日資料（若失敗回 500）
+    try:
+        purge_outdated_recos(user_id)
+    except Exception as e:
+        app.logger.exception("purge_outdated_recos failed")
+        return _json_error(f"清理舊推薦失敗: {e}", 500)
+
+    # ---------- Day：固定 1 格 ----------
+    if source == 'day':
+        day_text = _get_today_day_entry_text(user_id)
+        if not day_text:
+            return _json_error("今天沒有 Day 紀錄，無法產生 Day 推薦")
+
+        try:
+            # ★ 3) 你的函式回傳值要一致：這裡假設回 (cand_docs, cand_names)；若沒有 names 就用 _
+            cand_docs, _ = _embed_and_candidates(day_text, n_results=6)
+        except Exception as e:
+            app.logger.exception("_embed_and_candidates failed (day)")
+            return _json_error(f"Day 候選產生失敗: {e}", 500)
+
+        try:
+            oils, reasons = _llm_pick_oils(day_text, cand_docs, k=1)
+        except Exception as e:
+            app.logger.exception("_llm_pick_oils failed (day)")
+            return _json_error(f"Day 推薦失敗（LLM）: {e}", 500)
+
+        # ★ 4) 防空、防長度不一致
+        if not oils or len(oils) < 1:
+            return _json_error("Day 推薦結果為空（oils=[]）", 500)
+        if not reasons or len(reasons) < 1:
+            reasons = ["這款精油與今日 Day 紀錄高度相關。"]
+
+        oil_name = (oils[0] or "").strip()
+        reason   = (reasons[0] or "這款精油與今日 Day 紀錄高度相關。").strip()
+        if not oil_name:
+            return _json_error("Day 推薦得到的油品名稱為空", 500)
+
+        try:
+            ids, name2desc = _find_oil_id_and_descs([oil_name], cand_docs)
+        except Exception as e:
+            app.logger.exception("_find_oil_id_and_descs failed (day)")
+            return _json_error(f"查詢精油資料失敗: {e}", 500)
+
+        # ★ 5) 防 KeyError
+        oil_id = ids.get(oil_name)
+        if not isinstance(oil_id, int):
+            return _json_error(f"找不到油品 ID：{oil_name}", 500)
+        oil_desc = name2desc.get(oil_name, "查無精油功效")
+
+        try:
+            _replace_today_day_reco(user_id, oil_id, reason, oil_desc)
+        except Exception as e:
+            app.logger.exception("_replace_today_day_reco failed")
+            return _json_error(f"寫入 Day 推薦失敗: {e}", 500)
+
+        rows = list_today_recos(user_id)
+        return jsonify({
+            "status": "day_set",
+            "item": {"oil": oil_name, "oil_id": oil_id, "reason": reason, "oil_desc": oil_desc},
+            "all": rows
+        }), 200
+
+    # ---------- Now：兩格，每次刷新 ----------
+    else:
+        now_text = _get_today_now_text(user_id)
+        if not now_text:
+            return _json_error("今天沒有 Now 紀錄，無法產生 Now 推薦")
+
+        try:
+            cand_docs, cand_names = _embed_and_candidates(now_text, n_results=8)
+        except Exception as e:
+            app.logger.exception("_embed_and_candidates failed (now)")
+            return _json_error(f"Now 候選產生失敗: {e}", 500)
+
+        try:
+            oils, reasons = _llm_pick_oils(now_text, cand_docs, k=2)
+        except Exception as e:
+            app.logger.exception("_llm_pick_oils failed (now)")
+            return _json_error(f"Now 推薦失敗（LLM）: {e}", 500)
+
+        oils = [ (o or "").strip() for o in (oils or []) if (o or "").strip() ]
+        reasons = reasons or []
+        if len(reasons) < len(oils):
+            # 補齊理由長度
+            reasons += ["這款精油與今日 Now 紀錄高度相關。"] * (len(oils) - len(reasons))
+
+        try:
+            day_ids = set(_get_today_day_oil_ids(user_id) or [])
+        except Exception as e:
+            app.logger.exception("_get_today_day_oil_ids failed")
+            return _json_error(f"讀取 Day 已選失敗: {e}", 500)
+
+        try:
+            ids, name2desc = _find_oil_id_and_descs(oils, cand_docs)
+        except Exception as e:
+            app.logger.exception("_find_oil_id_and_descs failed (now-first)")
+            return _json_error(f"查詢精油資料失敗: {e}", 500)
+
+        pairs: list[tuple[int, str, str, str]] = []
+        chosen_ids = set()
+        # 先放入 LLM 挑的
+        for name, reason in zip(oils, reasons):
+            oid = ids.get(name)
+            if not isinstance(oid, int):
+                continue
+            if oid in day_ids or oid in chosen_ids:
+                continue
+            pairs.append((oid, name, reason or "這款精油與今日 Now 紀錄高度相關。", name2desc.get(name, "查無精油功效")))
+            chosen_ids.add(oid)
+
+        # 不足 2 支 → 從候選補（略過已選與 day）
+        cand_names = [ (n or "").strip() for n in (cand_names or []) if (n or "").strip() ]
+        for nm in cand_names:
+            if len(pairs) >= 2:
+                break
+            try:
+                nid_map, descs = _find_oil_id_and_descs([nm], cand_docs)
+                nid = nid_map.get(nm)
+                if not isinstance(nid, int):
+                    continue
+                if nid in day_ids or nid in chosen_ids:
+                    continue
+                pairs.append((nid, nm, "這款精油與今日 Now 紀錄高度相關。", descs.get(nm, "查無精油功效")))
+                chosen_ids.add(nid)
+            except Exception:
+                continue
+
+        if not pairs:
+            # 仍然選不到：給明確訊息，方便排查候選/嵌入庫內容
+            return _json_error("今天的 Now 推薦無法產生可用油品（可能候選庫無對應名稱或 ID 對不上）", 500)
+
+        try:
+            _replace_today_now_recos(user_id, pairs[:2])
+        except Exception as e:
+            app.logger.exception("_replace_today_now_recos failed")
+            return _json_error(f"寫入 Now 推薦失敗: {e}", 500)
+
+        rows = list_today_recos(user_id)
+        return jsonify({
+            "status": "now_refreshed",
+            "items": [
+                {"oil_id": p[0], "oil": p[1], "reason": p[2], "oil_desc": p[3]}
+                for p in pairs[:2]
+            ],
+            "all": rows
+        }), 200
+
+@app.route('/today_oil_recos', methods=['GET'])
+def today_oil_recos():  
     user_id = request.args.get('user_id')
     if not user_id:
         return jsonify({"error": "請帶上 user_id"}), 400
 
-<<<<<<< HEAD
+    # 也可順手清一次舊資料（保險）
     try:
-        summary_json = analyze_today_all().json
-        summary_text = summary_json.get('summary', '')
-=======
-    # 1) 取得今日摘要
-    try:
-        summary_json = get_today_summary(user_id)
-        if not summary_json:
-            return jsonify({"error": "今天沒有任何紀錄可供推薦"}), 400
-        summary_text = summary_json.get('summary', '').strip()
->>>>>>> d1ff696678951b3ed1799dfa6209ce0a6a2d3254
-        if not summary_text:
-            return jsonify({"error": "找不到今日摘要", "raw": summary_json}), 400
+        purge_outdated_recos(user_id)
     except Exception as e:
-        return jsonify({"error": f"今日摘要失敗: {e}"}), 500
+        return jsonify({"error": f"清理舊推薦失敗: {e}"}), 500
 
-<<<<<<< HEAD
-=======
-    # 2) 向量查詢取候選清單（top-3）
->>>>>>> d1ff696678951b3ed1799dfa6209ce0a6a2d3254
     try:
-        qvec = embed_text(summary_text)
-        results = col.query(query_embeddings=[qvec], n_results=3)
-        oil_docs = results['documents'][0]
-<<<<<<< HEAD
-        oil_ids = results['ids'][0]
-=======
->>>>>>> d1ff696678951b3ed1799dfa6209ce0a6a2d3254
-        if not oil_docs:
-            return jsonify({"error": "查無相關精油"}), 404
+        rows = list_today_recos(user_id)
+        return jsonify(rows)
     except Exception as e:
-        return jsonify({"error": f"向量查詢失敗: {e}"}), 500
-
-<<<<<<< HEAD
-=======
-    # 3) 準備候選文字給 AI 挑選
->>>>>>> d1ff696678951b3ed1799dfa6209ce0a6a2d3254
-    candidates = '\n'.join([f"{idx+1}. {oil_docs[idx]}" for idx in range(len(oil_docs))])
-    messages = [
-        {"role": "system", "content": (
-            "你是一位芳療專家，只能從下列精油選出一款最適合的，格式如下："
-            "{\"oil\":\"精油名稱\",\"reason\":\"推薦理由（>20字）\"}。\n"
-<<<<<<< HEAD
-            f"候選精油：\n{candidates}")},
-        {"role": "user", "content": f"日記內容：\n{summary_text}"}
-    ]
-
-    payload = {
-        'model': 'gemma3:12b',
-        'messages': messages,
-        'stream': False,
-        'options': {
-            'num_gpu': 1,
-            'main_gpu': 0,
-            'low_vram': False,
-            'num_ctx': 8192,
-            'keep_alive': -1
-        }
-    }
-
-=======
-            "不能回覆候選名單外的精油，不能省略欄位。\n"
-            f"候選精油：\n{candidates}"
-        )},
-        {"role": "user", "content": f"日記內容：\n{summary_text}"}
-    ]
-
-    payload = {
-        'model': 'gemma3:12b',
-        'messages': messages,
-        'stream': False,
-        'options': {
-            'num_gpu': 1,
-            'main_gpu': 0,
-            'low_vram': False,
-            'num_ctx': 8192,
-            'keep_alive': -1
-        }
-    }
-
-    # 4) 向 AI 要結果
->>>>>>> d1ff696678951b3ed1799dfa6209ce0a6a2d3254
-    try:
-        resp = requests.post(OLLAMA_CHAT_URL, json=payload, timeout=180)
-        content = resp.json().get("message", {}).get("content", "").strip()
-        match = re.search(r'\{.*?\}', content, re.DOTALL)
-        parsed = json.loads(match.group(0)) if match else {}
-    except Exception as e:
-        return jsonify({"error": f"AI推薦失敗: {e}"}), 500
-
-<<<<<<< HEAD
-    oil_name = parsed.get("oil", "").strip()
-    reason = parsed.get("reason", "")
-    oil_desc = next((doc for doc in oil_docs if oil_name and doc.startswith(oil_name)), "")
-    if not oil_desc:
-        oil_desc = "查無精油功效（模型可能回傳名單外精油）"
-    if not reason:
-        reason = "AI未正確給出推薦理由，請重新嘗試"
-
-=======
-    oil_name = (parsed.get("oil") or "").strip()
-    reason = (parsed.get("reason") or "").strip()
-
-    # 5) 嚴格檢查：AI 必須選在候選清單內的名稱
-    candidate_names = [doc.split('：', 1)[0] for doc in oil_docs]  # documents 形如「名稱：功效、功效…」
-    if not oil_name or oil_name not in candidate_names:
-        return jsonify({
-            "error": f"AI 回傳的精油不在候選名單內：{oil_name}",
-            "candidates": candidate_names
-        }), 400
-
-    # 6) 由 DB 查 id / price，並寫入 users.oil_id
->>>>>>> d1ff696678951b3ed1799dfa6209ce0a6a2d3254
-    try:
-        conn = get_db_connection()
-        if conn is None:
-            return jsonify({"error": "資料庫連線失敗"}), 500
-        cursor = conn.cursor(dictionary=True)
-<<<<<<< HEAD
-        cursor.execute("SELECT id FROM oil WHERE name = %s", (oil_name,))
-        row = cursor.fetchone()
-        if not row:
-            return jsonify({"error": f"資料庫查無精油名稱: {oil_name}"}), 400
-        oil_id = row['id']
-
-=======
-
-        cursor.execute("SELECT id, price FROM oil WHERE name = %s", (oil_name,))
-        row = cursor.fetchone()
-        if not row:
-            return jsonify({"error": f"資料庫查無精油名稱: {oil_name}"}), 400
-
-        oil_id = int(row['id'])
-        oil_price = row.get('price', 0)
-
->>>>>>> d1ff696678951b3ed1799dfa6209ce0a6a2d3254
-        cursor.execute("UPDATE users SET oil_id = %s WHERE id = %s", (oil_id, user_id))
-        conn.commit()
-    except Exception as e:
-        return jsonify({"error": f"更新使用者 oil_id 失敗: {e}"}), 500
-    finally:
-<<<<<<< HEAD
-        conn.close()
-=======
-        try:
-            conn.close()
-        except:
-            pass
->>>>>>> d1ff696678951b3ed1799dfa6209ce0a6a2d3254
-
-    # 7) 整理描述與理由（描述用候選文本中找到的那條）
-    oil_desc = next((doc for doc in oil_docs if doc.startswith(oil_name)), "")
-    if not oil_desc:
-        oil_desc = "查無精油功效（模型可能回傳名單外精油）"
-    if not reason:
-        reason = "AI未正確給出推薦理由，請重新嘗試"
-
-    # 8) 回傳（含 price 與數字型 oil_id，前端用 assets/oils/{id}.jpg）
-    return jsonify({
-        "oil": oil_name,
-        "oil_id": oil_id,
-<<<<<<< HEAD
-=======
-        "price": oil_price,
->>>>>>> d1ff696678951b3ed1799dfa6209ce0a6a2d3254
-        "reason": reason,
-        "oil_desc": oil_desc,
-        "status": "success"
-    })
+        return jsonify({"error": f"取得今日推薦清單失敗: {e}"}), 500
 
 @app.route('/search_diary_entries', methods=['GET'])
 def search_diary_entries():

@@ -202,7 +202,7 @@ class _EmotionHexSelectorState extends State<EmotionHexSelector> {
       width: widget.size,
       height: widget.size,
       child: LayoutBuilder(
-        builder: (_, __) {
+        builder: (_, _) {
           return GestureDetector(
             behavior: HitTestBehavior.opaque,
             onPanStart: (d) => _updateFromDrag(d.localPosition),

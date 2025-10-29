@@ -43,3 +43,10 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# FVM Version Cache
+.fvm/
+# ---- build/runtime artifacts ----
+backend/venv/
+backend/flask_session/
+backend/chroma_db/

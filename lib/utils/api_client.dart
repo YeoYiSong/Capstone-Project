@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:firebase_auth/firebase_auth.dart';
 import '/utils/config.dart';
 import 'package:flutter/foundation.dart';
+import 'dart:async' show unawaited;
 
 class DiaryEntry {
   final int id;
@@ -162,9 +163,10 @@ class ApiClient {
     }
   }
 
+  /// 儲存日記：成功後自動觸發推薦 (/recommend_today_oil?user_id=..&source=day|now)
   Future<void> saveDiaryEntry({
     required DateTime date,
-    required String type,
+    required String type, // 'Day' or 'Now' 都可，會自動轉
     required List<Map<String, dynamic>> emotions,
     required String? mixedColor,
     required String moodText,
@@ -180,16 +182,23 @@ class ApiClient {
     final userId = await getUserId();
     if (userId == null) throw Exception('用戶未登入');
 
+    // 後端只認 'Day' / 'Moment'，這裡把 'Now' 正規化為 'Moment'
+    final lower = type.toLowerCase();
+    final normalizedType = (lower == 'day') ? 'Day' : 'Moment';
+    // 推薦用的 source：day / now
+    final source = (lower == 'day') ? 'day' : 'now';
+
     final body = {
       'user_id': userId,
       'date': date.toIso8601String(),
-      'type': type,
+      'type': normalizedType, // <== 關鍵：送 Day / Moment
       'emotions': emotions,
       'mixed_color': mixedColor,
       'mood_text': moodText,
       'details': details,
       'is_english': isEnglish,
     };
+
     try {
       final response = await http.post(
         Uri.parse('${getBaseUrl()}/save_diary_entry'),
@@ -205,6 +214,26 @@ class ApiClient {
         throw Exception('儲存日記條目失敗：${response.body}');
       }
       developer.log('Diary entry saved successfully', name: 'ApiClient');
+
+      // === 成功後觸發三格推薦（不阻斷原流程，失敗只記錄） ===
+      unawaited(
+        recommendTodayOil(source: source)
+            .timeout(const Duration(seconds: 2)) // 短超時，避免網路慢拖住 isolate
+            .then((reco) {
+              developer.log(
+                'Triggered recommend_today_oil after save ($source): $reco',
+                name: 'ApiClient',
+              );
+            })
+            .catchError((e, _) {
+              // 後端可能在資料不足時回 400；這裡只記錄，不影響主流程
+              developer.log(
+                'Trigger recommend_today_oil failed (ignored): $e',
+                name: 'ApiClient',
+                error: e,
+              );
+            }),
+      );
     } catch (e) {
       developer.log(
         'Error saving diary entry: $e',
@@ -411,11 +440,7 @@ class ApiClient {
     }
   }
 
-<<<<<<< HEAD
-  Stream<String> chat(String message) async* {
-=======
   Stream<String> chat(String message, String conversation) async* {
->>>>>>> d1ff696678951b3ed1799dfa6209ce0a6a2d3254
     final userId = await getUserId();
     if (userId == null) {
       developer.log('No user logged in for chat', name: 'ApiClient');
@@ -425,15 +450,11 @@ class ApiClient {
     final request =
         http.Request('POST', Uri.parse('${getBaseUrl()}/chat'))
           ..headers['Content-Type'] = 'application/json'
-<<<<<<< HEAD
-          ..body = jsonEncode({'message': message, 'user_id': userId});
-=======
           ..body = jsonEncode({
             'message': message,
             'user_id': userId,
             'conversation': conversation,
           });
->>>>>>> d1ff696678951b3ed1799dfa6209ce0a6a2d3254
 
     try {
       final streamedResponse = await request.send();
@@ -457,8 +478,6 @@ class ApiClient {
     } catch (e) {
       developer.log('Error in chat stream: $e', name: 'ApiClient', error: e);
       throw Exception('傳送聊天訊息失敗：$e');
-<<<<<<< HEAD
-=======
     }
   }
 
@@ -501,7 +520,6 @@ class ApiClient {
     } catch (e) {
       developer.log('Error in chatEN stream: $e', name: 'ApiClient', error: e);
       throw Exception('傳送英文聊天訊息失敗：$e');
->>>>>>> d1ff696678951b3ed1799dfa6209ce0a6a2d3254
     }
   }
 
@@ -636,8 +654,38 @@ class ApiClient {
     }
   }
 
-<<<<<<< HEAD
-=======
+  Future<bool> hasDiaryForDate({
+    required DateTime date,
+    required String type, // 參數保留以相容呼叫端，但實際不再送到後端
+  }) async {
+    final userId = await getUserId();
+    if (userId == null || userId.isEmpty) {
+      throw Exception('UNAUTHENTICATED');
+    }
+
+    final iso =
+        "${date.year.toString().padLeft(4, '0')}-"
+        "${date.month.toString().padLeft(2, '0')}-"
+        "${date.day.toString().padLeft(2, '0')}";
+
+    final uri = Uri.parse('${getBaseUrl()}/diary/exists').replace(
+      queryParameters: {
+        'date': iso,
+        'user_id': userId, // <<<<<< 關鍵：一定要帶
+      },
+    );
+
+    final res = await http.get(uri, headers: {'Accept': 'application/json'});
+
+    if (res.statusCode == 200) {
+      final data = jsonDecode(res.body);
+      return data['exists'] == true;
+    }
+
+    // 其他狀態視為錯誤，交給呼叫端決定是否鎖住
+    throw Exception('exists check failed: ${res.statusCode} ${res.body}');
+  }
+
   /// 搜尋日記與瞬間 (/search_diary_entries)
   Future<List<Map<String, dynamic>>> searchDiaryEntries({
     required String query,
@@ -684,7 +732,6 @@ class ApiClient {
     }
   }
 
->>>>>>> d1ff696678951b3ed1799dfa6209ce0a6a2d3254
   Future<void> renameConversation(String oldName, String newName) async {
     final userId = await getUserId();
     if (userId == null) throw Exception('用戶未登入');
@@ -722,11 +769,7 @@ class ApiClient {
   Future<void> deleteConversation(String conversation) async {
     final userId = await getUserId();
     if (userId == null) throw Exception('用戶未登入');
-<<<<<<< HEAD
-    if (conversation == 'default') {
-=======
     if (conversation == 'untitled_') {
->>>>>>> d1ff696678951b3ed1799dfa6209ce0a6a2d3254
       throw Exception('無法刪除預設對話');
     }
 
@@ -756,11 +799,7 @@ class ApiClient {
     }
   }
 
-<<<<<<< HEAD
-  Future<Map<String, dynamic>> finalizeConversation() async {
-=======
   Future<Map<String, dynamic>> finalizeConversation(String conversation) async {
->>>>>>> d1ff696678951b3ed1799dfa6209ce0a6a2d3254
     final userId = await getUserId();
     if (userId == null) throw Exception('用戶未登入');
 
@@ -768,11 +807,7 @@ class ApiClient {
       final response = await http.post(
         Uri.parse('${getBaseUrl()}/finalize'),
         headers: {'Content-Type': 'application/json'},
-<<<<<<< HEAD
-        body: jsonEncode({'user_id': userId}),
-=======
         body: jsonEncode({'user_id': userId, 'conversation': conversation}),
->>>>>>> d1ff696678951b3ed1799dfa6209ce0a6a2d3254
       );
 
       if (response.statusCode == 200) {
@@ -827,8 +862,6 @@ class ApiClient {
     }
   }
 
-<<<<<<< HEAD
-=======
   Future<List<dynamic>> getAllOils() async {
     try {
       final response = await http.get(
@@ -845,15 +878,19 @@ class ApiClient {
     }
   }
 
->>>>>>> d1ff696678951b3ed1799dfa6209ce0a6a2d3254
-  Future<Map<String, dynamic>> recommendTodayOil() async {
+  /// 單筆推薦（今天摘要），支援帶上 source=day/now，並回傳該次推薦結果
+  Future<Map<String, dynamic>> recommendTodayOil({String? source}) async {
     final userId = await getUserId();
     if (userId == null) throw Exception('用戶未登入');
 
     try {
-      final response = await http.get(
-        Uri.parse('${getBaseUrl()}/recommend_today_oil?user_id=$userId'),
+      final uri = Uri.parse('${getBaseUrl()}/recommend_today_oil').replace(
+        queryParameters: {
+          'user_id': userId,
+          if (source != null && source.isNotEmpty) 'source': source,
+        },
       );
+      final response = await http.get(uri);
 
       if (response.statusCode == 200) {
         developer.log(
@@ -875,6 +912,43 @@ class ApiClient {
         error: e,
       );
       throw Exception('取得今日精油推薦失敗：$e');
+    }
+  }
+
+  /// 取得今天所有已存的推薦清單（多筆）
+  Future<List<Map<String, dynamic>>> getTodayOilRecos() async {
+    final userId = await getUserId();
+    if (userId == null) throw Exception('用戶未登入');
+
+    try {
+      final uri = Uri.parse(
+        '${getBaseUrl()}/today_oil_recos',
+      ).replace(queryParameters: {'user_id': userId});
+      final response = await http.get(uri);
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data is List) {
+          return data
+              .map<Map<String, dynamic>>((e) => Map<String, dynamic>.from(e))
+              .toList();
+        } else {
+          throw Exception('回傳格式錯誤: $data');
+        }
+      } else {
+        developer.log(
+          'getTodayOilRecos failed: ${response.body} (Status: ${response.statusCode})',
+          name: 'ApiClient',
+        );
+        throw Exception('取得今日推薦清單失敗：${response.body}');
+      }
+    } catch (e) {
+      developer.log(
+        'Error getting today oil recos: $e',
+        name: 'ApiClient',
+        error: e,
+      );
+      throw Exception('取得今日推薦清單失敗：$e');
     }
   }
 }

@@ -164,73 +164,130 @@ class DiaryReviewScreenState extends State<DiaryReviewScreen>
         date.month == _animDate!.month &&
         date.day == _animDate!.day;
 
-    return Container(
-      margin: const EdgeInsets.all(6.0),
-      alignment: Alignment.center,
-      child: Stack(
+    return AspectRatio(
+      // 保持正方形
+      aspectRatio: 1,
+      child: Container(
+        margin: const EdgeInsets.all(4.0),
         alignment: Alignment.center,
-        children: [
-          // 底：原本已存的顏色
-          Container(
-            decoration: BoxDecoration(
-              color: isToday && !isSelected ? kPillBg : baseColor,
-              shape: BoxShape.circle,
-              border:
-                  isSelected
-                      ? Border.all(color: kInk, width: 2)
-                      : Border.all(color: Colors.black12, width: 0.5),
-            ),
-            width: double.infinity,
-            height: double.infinity,
-            child: Center(
-              child: Text(
-                '${date.day}',
-                style: TextStyle(
-                  color: isSelected ? Colors.white : kInk,
-                  fontWeight:
-                      isToday || isSelected ? FontWeight.w700 : FontWeight.w500,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            // 底色方塊
+            Container(
+              decoration: BoxDecoration(
+                color: isToday && !isSelected ? kPillBg : baseColor,
+                borderRadius: BorderRadius.circular(8), // 可以加圓角
+                border:
+                    isSelected
+                        ? Border.all(color: kInk, width: 2)
+                        : Border.all(color: Colors.black12, width: 0.5),
+              ),
+              width: double.infinity,
+              height: double.infinity,
+              child: Center(
+                child: Text(
+                  '${date.day}',
+                  style: TextStyle(
+                    color: isSelected ? Colors.white : kInk,
+                    fontWeight:
+                        isToday || isSelected
+                            ? FontWeight.w700
+                            : FontWeight.w500,
+                  ),
                 ),
               ),
             ),
-          ),
 
-          // 動畫覆蓋層：由內向外擴張
-          if (isTarget && _animColor != null)
-            AnimatedBuilder(
-              animation: _fillCtrl,
-              builder: (_, __) {
-                final scale = Curves.easeOut.transform(_fillCtrl.value);
-                return Transform.scale(
-                  scale: scale, // 0 → 1
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: _animColor!.withValues(
-                        alpha: 0.15 + 0.85 * _fillCtrl.value,
+            // 動畫覆蓋層
+            if (isTarget && _animColor != null)
+              AnimatedBuilder(
+                animation: _fillCtrl,
+                builder: (_, _) {
+                  final scale = Curves.easeOut.transform(_fillCtrl.value);
+                  return Transform.scale(
+                    scale: scale,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: _animColor!.withValues(
+                          alpha: 0.15 + 0.85 * _fillCtrl.value,
+                        ),
+                        borderRadius: BorderRadius.circular(8),
                       ),
-                      shape: BoxShape.circle,
                     ),
-                  ),
-                );
-              },
-            ),
-        ],
+                  );
+                },
+              ),
+          ],
+        ),
       ),
     );
   }
 
-  // ================== UI ==================
-  @override
-  Widget build(BuildContext context) {
-    if (widget.isDiaryLocked) {
-      return DiaryLockedScreen(
-        diaryPassword: widget.diaryPassword ?? '',
-        isEnglish: widget.isEnglish,
-      );
-    }
+  // ================== 葉子分隔圖（貼近示意圖） ==================
+  Widget _buildLeafDivider() {
+    return Padding(
+      padding: const EdgeInsets.only(top: 12, bottom: 8),
+      child: SizedBox(
+        width: double.infinity, // 橫向滿版
+        child: Image.asset(
+          'assets/picture/fullleaf.png',
+          fit: BoxFit.fitWidth, // ✅ 改這裡，不裁切，上下完整顯示
+          alignment: Alignment.center, // 圖片置中
+          filterQuality: FilterQuality.high,
+        ),
+      ),
+    );
+  }
 
+  // ================== 區塊建構器（讓版面更乾淨） ==================
+  List<Widget> _buildMomentTiles() {
     final momentEntries =
         _diaryEntries.where((entry) => entry.type == 'Moment').toList();
+    if (momentEntries.isEmpty) {
+      return [
+        Text(
+          widget.isEnglish ? 'No moment entries for this date.' : '此日期無當下感受記錄。',
+          style: TextStyle(color: kSubInk.withValues(alpha: 0.9)),
+        ),
+      ];
+    }
+    return momentEntries.map((entry) {
+      return ListTile(
+        leading: const CircleAvatar(
+          backgroundColor: kPillBg,
+          child: Icon(Icons.notes, color: kInk, size: 18),
+        ),
+        title: Text(
+          '${entry.time} ${entry.emotions.map((e) => e['emotion']).join(', ')}',
+          style: const TextStyle(color: kInk),
+        ),
+        subtitle: Text(
+          entry.moodText ?? (widget.isEnglish ? 'No text' : '無文字'),
+          style: TextStyle(color: kSubInk.withValues(alpha: 0.9)),
+        ),
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder:
+                  (_) => MomentFeelingsScreen(
+                    isEnglish: widget.isEnglish,
+                    date: entry.date,
+                    isReadOnly: true,
+                    emotions: entry.emotions,
+                    mixedColor: entry.mixedColor,
+                    moodText: entry.moodText,
+                    details: entry.details,
+                  ),
+            ),
+          );
+        },
+      );
+    }).toList();
+  }
 
+  List<Widget> _buildDaySection() {
     final dayEntry = _diaryEntries.firstWhere(
       (entry) => entry.type == 'Day',
       orElse:
@@ -247,14 +304,101 @@ class DiaryReviewScreenState extends State<DiaryReviewScreen>
           ),
     );
 
+    if (dayEntry.id == -1) {
+      return [
+        Text(
+          widget.isEnglish ? 'No day entry for this date.' : '此日期無整天感受記錄。',
+          style: TextStyle(color: kSubInk.withValues(alpha: 0.9)),
+        ),
+      ];
+    }
+
+    return [
+      ListTile(
+        leading: const CircleAvatar(
+          backgroundColor: kPillBg,
+          child: Icon(Icons.event_note, color: kInk, size: 18),
+        ),
+        title: Text(
+          dayEntry.emotions.map((e) => e['emotion']).join(', '),
+          style: const TextStyle(color: kInk),
+        ),
+        subtitle: Text(
+          dayEntry.moodText ?? (widget.isEnglish ? 'No text' : '無文字'),
+          style: TextStyle(color: kSubInk.withValues(alpha: 0.9)),
+        ),
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder:
+                  (_) => DayFeelingsScreen(
+                    isEnglish: widget.isEnglish,
+                    date: dayEntry.date,
+                    isReadOnly: true,
+                    emotions: dayEntry.emotions,
+                    mixedColor: dayEntry.mixedColor,
+                    moodText: dayEntry.moodText,
+                    details: dayEntry.details,
+                  ),
+            ),
+          );
+        },
+      ),
+    ];
+  }
+
+  List<Widget> _buildBreathSection() {
+    if (_breathRecords.isEmpty) {
+      return [
+        Text(
+          widget.isEnglish
+              ? 'No breathing records for this date.'
+              : '此日期無呼吸記錄。',
+          style: TextStyle(color: kSubInk.withValues(alpha: 0.9)),
+        ),
+      ];
+    }
+    return _breathRecords.map((record) {
+      final time = record.recordTime;
+      return ListTile(
+        leading: const CircleAvatar(
+          backgroundColor: kPillBg,
+          child: Icon(Icons.self_improvement, color: kInk, size: 18),
+        ),
+        title: Text(
+          '🕒 $time - ${widget.isEnglish ? '${record.min} minutes' : '${record.min} 分鐘'}',
+          style: const TextStyle(color: kInk),
+        ),
+        subtitle: Text(
+          record.feeling ??
+              (widget.isEnglish ? 'No feeling recorded' : '無感受記錄'),
+          style: TextStyle(color: kSubInk.withValues(alpha: 0.9)),
+        ),
+      );
+    }).toList();
+  }
+
+  // ================== UI ==================
+  @override
+  Widget build(BuildContext context) {
+    if (widget.isDiaryLocked) {
+      return DiaryLockedScreen(
+        diaryPassword: widget.diaryPassword ?? '',
+        isEnglish: widget.isEnglish,
+      );
+    }
+
     return Scaffold(
       backgroundColor: kBg,
       appBar: AppBar(
         backgroundColor: kBg,
         elevation: 0,
-        title: Text(
-          widget.isEnglish ? 'Diary Review' : '本子回顧',
-          style: const TextStyle(color: kInk, fontWeight: FontWeight.w600),
+        title: Text(widget.isEnglish ? 'Diary Review' : '本子回顧'),
+        titleTextStyle: const TextStyle(
+          color: kInk,
+          fontWeight: FontWeight.w600,
+          fontSize: 20,
         ),
         iconTheme: const IconThemeData(color: kInk),
         actions: [
@@ -273,289 +417,248 @@ class DiaryReviewScreenState extends State<DiaryReviewScreen>
           ),
         ],
       ),
-      body: Column(
-        children: [
-          // 左上角「已存入本子！」，隨動畫淡出
-          if (_shouldAnimate)
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                child: AnimatedBuilder(
-                  animation: _fillCtrl,
-                  builder: (_, __) {
-                    final opacity =
-                        1.0 - Curves.easeOut.transform(_fillCtrl.value);
-                    final dy = 8 * _fillCtrl.value;
-                    return Opacity(
-                      opacity: opacity.clamp(0, 1),
-                      child: Transform.translate(
-                        offset: Offset(0, -dy),
-                        child: Text(
-                          widget.isEnglish ? 'Saved to Diary!' : '已存入本子！',
+
+      // 改為「單一可捲動」以避免葉子放大時，底下內容被擠到看不見
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          return SingleChildScrollView(
+            padding: EdgeInsets.zero,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: constraints.maxHeight),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // 左上角「已存入本子！」，隨動畫淡出
+                  if (_shouldAnimate)
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                        child: AnimatedBuilder(
+                          animation: _fillCtrl,
+                          builder: (_, _) {
+                            final opacity =
+                                1.0 - Curves.easeOut.transform(_fillCtrl.value);
+                            final dy = 8 * _fillCtrl.value;
+                            return Opacity(
+                              opacity: opacity.clamp(0, 1),
+                              child: Transform.translate(
+                                offset: Offset(0, -dy),
+                                child: Text(
+                                  widget.isEnglish
+                                      ? 'Saved to Diary!'
+                                      : '已存入本子！',
+                                  style: const TextStyle(
+                                    fontFamily: 'PixelFont',
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.bold,
+                                    color: kInk,
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+
+                  // ===== 月曆 =====
+                  Theme(
+                    data: Theme.of(context).copyWith(
+                      splashColor: Colors.transparent,
+                      highlightColor: Colors.transparent,
+                      hoverColor: Colors.transparent,
+                    ),
+                    child: TableCalendar(
+                      firstDay: DateTime.utc(2020, 1, 1),
+                      lastDay: DateTime.utc(2030, 12, 31),
+                      focusedDay: _focusedDay,
+                      selectedDayPredicate:
+                          (day) => isSameDay(_selectedDay, day),
+                      onDaySelected: (selectedDay, focusedDay) {
+                        setState(() {
+                          _selectedDay = selectedDay;
+                          _focusedDay = focusedDay;
+                          _shouldAnimate = false; // 手動點日期時取消動畫狀態
+                        });
+                        _loadDiaryEntries(selectedDay);
+                        _loadBreathRecords(selectedDay);
+                      },
+                      calendarFormat: CalendarFormat.month,
+                      locale:
+                          widget.isEnglish
+                              ? 'en_US'
+                              : 'zh_TW', // ✅ 改成 zh_TW 比較正確
+                      // 把預設 decoration 全設透明，交給 _buildDayContainer 負責顏色
+                      calendarStyle: const CalendarStyle(
+                        isTodayHighlighted: false,
+                        defaultDecoration: BoxDecoration(
+                          color: Colors.transparent,
+                        ),
+                        weekendDecoration: BoxDecoration(
+                          color: Colors.transparent,
+                        ),
+                        outsideDecoration: BoxDecoration(
+                          color: Colors.transparent,
+                        ),
+                        disabledDecoration: BoxDecoration(
+                          color: Colors.transparent,
+                        ),
+                        todayDecoration: BoxDecoration(
+                          color: Colors.transparent,
+                        ),
+                        selectedDecoration: BoxDecoration(
+                          color: Colors.transparent,
+                        ),
+                        rangeHighlightColor: Colors.transparent,
+                        withinRangeDecoration: BoxDecoration(
+                          color: Colors.transparent,
+                        ),
+                        rangeStartDecoration: BoxDecoration(
+                          color: Colors.transparent,
+                        ),
+                        rangeEndDecoration: BoxDecoration(
+                          color: Colors.transparent,
+                        ),
+                      ),
+
+                      headerStyle: HeaderStyle(
+                        titleTextStyle: const TextStyle(
+                          color: kInk,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        formatButtonVisible: true,
+                        leftChevronIcon: const Icon(
+                          Icons.chevron_left,
+                          color: kInk,
+                        ),
+                        rightChevronIcon: const Icon(
+                          Icons.chevron_right,
+                          color: kInk,
+                        ),
+                      ),
+
+                      daysOfWeekStyle: const DaysOfWeekStyle(
+                        weekdayStyle: TextStyle(
+                          color: kSubInk,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        weekendStyle: TextStyle(
+                          color: kSubInk,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+
+                      // 一律用你自訂的 _buildDayContainer 來畫
+                      calendarBuilders: CalendarBuilders(
+                        todayBuilder:
+                            (context, date, _) =>
+                                _buildDayContainer(date, isToday: true),
+                        selectedBuilder:
+                            (context, date, _) =>
+                                _buildDayContainer(date, isSelected: true),
+                        defaultBuilder:
+                            (context, date, _) => _buildDayContainer(date),
+                        outsideBuilder:
+                            (context, date, _) => _buildDayContainer(date),
+                        disabledBuilder:
+                            (context, date, _) => _buildDayContainer(date),
+                      ),
+                    ),
+                  ),
+
+                  // ===== 葉子分隔圖（新）=====
+                  _buildLeafDivider(),
+
+                  // ===== 內容 =====
+                  Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // 當下感受
+                        Text(
+                          widget.isEnglish
+                              ? 'Moment Feelings (${_diaryEntries.where((e) => e.type == "Moment").length} entries)'
+                              : '當下感受（${_diaryEntries.where((e) => e.type == "Moment").length} 筆記錄）',
                           style: const TextStyle(
-                            fontFamily: 'PixelFont',
-                            fontSize: 22,
+                            fontSize: 18,
                             fontWeight: FontWeight.bold,
                             color: kInk,
                           ),
                         ),
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ),
+                        const SizedBox(height: 10),
+                        ..._buildMomentTiles(),
 
-          // ===== 月曆 =====
-          TableCalendar(
-            firstDay: DateTime.utc(2020, 1, 1),
-            lastDay: DateTime.utc(2030, 12, 31),
-            focusedDay: _focusedDay,
-            selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
-            onDaySelected: (selectedDay, focusedDay) {
-              setState(() {
-                _selectedDay = selectedDay;
-                _focusedDay = focusedDay;
-                _shouldAnimate = false; // 手動點日期時取消動畫狀態
-              });
-              _loadDiaryEntries(selectedDay);
-              _loadBreathRecords(selectedDay);
-            },
-            calendarFormat: CalendarFormat.month,
-            locale: widget.isEnglish ? 'en_US' : 'zh_CN',
-            calendarStyle: const CalendarStyle(
-              todayDecoration: BoxDecoration(shape: BoxShape.circle),
-              selectedDecoration: BoxDecoration(shape: BoxShape.circle),
-            ),
-            headerStyle: HeaderStyle(
-              titleTextStyle: const TextStyle(
-                color: kInk,
-                fontWeight: FontWeight.w600,
-              ),
-              formatButtonVisible: true,
-              leftChevronIcon: const Icon(Icons.chevron_left, color: kInk),
-              rightChevronIcon: const Icon(Icons.chevron_right, color: kInk),
-            ),
-            daysOfWeekStyle: const DaysOfWeekStyle(
-              weekdayStyle: TextStyle(
-                color: kSubInk,
-                fontWeight: FontWeight.w600,
-              ),
-              weekendStyle: TextStyle(
-                color: kSubInk,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            calendarBuilders: CalendarBuilders(
-              todayBuilder:
-                  (context, date, _) => _buildDayContainer(date, isToday: true),
-              selectedBuilder:
-                  (context, date, _) =>
-                      _buildDayContainer(date, isSelected: true),
-              defaultBuilder: (context, date, _) => _buildDayContainer(date),
-            ),
-          ),
+                        const SizedBox(height: 20),
 
-          // ===== 內容 =====
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // 當下感受
-                  Text(
-                    widget.isEnglish
-                        ? 'Moment Feelings (${momentEntries.length} entries)'
-                        : '當下感受（${momentEntries.length} 筆記錄）',
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: kInk,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  if (momentEntries.isEmpty)
-                    Text(
-                      widget.isEnglish
-                          ? 'No moment entries for this date.'
-                          : '此日期無當下感受記錄。',
-                      style: TextStyle(color: kSubInk.withValues(alpha: 0.9)),
-                    )
-                  else
-                    ...momentEntries.map((entry) {
-                      return ListTile(
-                        leading: const CircleAvatar(
-                          backgroundColor: kPillBg,
-                          child: Icon(Icons.notes, color: kInk, size: 18),
-                        ),
-                        title: Text(
-                          '${entry.time} ${entry.emotions.map((e) => e['emotion']).join(', ')}',
-                          style: const TextStyle(color: kInk),
-                        ),
-                        subtitle: Text(
-                          entry.moodText ??
-                              (widget.isEnglish ? 'No text' : '無文字'),
-                          style: TextStyle(
-                            color: kSubInk.withValues(alpha: 0.9),
-                          ),
-                        ),
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder:
-                                  (_) => MomentFeelingsScreen(
-                                    isEnglish: widget.isEnglish,
-                                    date: entry.date,
-                                    isReadOnly: true,
-                                    emotions: entry.emotions,
-                                    mixedColor: entry.mixedColor,
-                                    moodText: entry.moodText,
-                                    details: entry.details,
-                                  ),
-                            ),
-                          );
-                        },
-                      );
-                    }),
-
-                  const SizedBox(height: 20),
-
-                  // 整天感受
-                  Text(
-                    widget.isEnglish ? 'Day Feelings' : '整天感受',
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: kInk,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  if (dayEntry.id == -1)
-                    Text(
-                      widget.isEnglish
-                          ? 'No day entry for this date.'
-                          : '此日期無整天感受記錄。',
-                      style: TextStyle(color: kSubInk.withValues(alpha: 0.9)),
-                    )
-                  else
-                    ListTile(
-                      leading: const CircleAvatar(
-                        backgroundColor: kPillBg,
-                        child: Icon(Icons.event_note, color: kInk, size: 18),
-                      ),
-                      title: Text(
-                        dayEntry.emotions.map((e) => e['emotion']).join(', '),
-                        style: const TextStyle(color: kInk),
-                      ),
-                      subtitle: Text(
-                        dayEntry.moodText ??
-                            (widget.isEnglish ? 'No text' : '無文字'),
-                        style: TextStyle(color: kSubInk.withValues(alpha: 0.9)),
-                      ),
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder:
-                                (_) => DayFeelingsScreen(
-                                  isEnglish: widget.isEnglish,
-                                  date: dayEntry.date,
-                                  isReadOnly: true,
-                                  emotions: dayEntry.emotions,
-                                  mixedColor: dayEntry.mixedColor,
-                                  moodText: dayEntry.moodText,
-                                  details: dayEntry.details,
-                                ),
-                          ),
-                        );
-                      },
-                    ),
-
-                  const SizedBox(height: 20),
-
-                  // 呼吸記錄
-                  Text(
-                    widget.isEnglish
-                        ? 'Breathing Records (${_breathRecords.length} entries)'
-                        : '呼吸記錄（${_breathRecords.length} 筆記錄）',
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: kInk,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  if (_breathRecords.isEmpty)
-                    Text(
-                      widget.isEnglish
-                          ? 'No breathing records for this date.'
-                          : '此日期無呼吸記錄。',
-                      style: TextStyle(color: kSubInk.withValues(alpha: 0.9)),
-                    )
-                  else
-                    ..._breathRecords.map((record) {
-                      final time = record.recordTime;
-                      return ListTile(
-                        leading: const CircleAvatar(
-                          backgroundColor: kPillBg,
-                          child: Icon(
-                            Icons.self_improvement,
+                        // 整天感受
+                        Text(
+                          widget.isEnglish ? 'Day Feelings' : '整天感受',
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
                             color: kInk,
-                            size: 18,
                           ),
                         ),
-                        title: Text(
-                          '🕒 $time - ${widget.isEnglish ? '${record.min} minutes' : '${record.min} 分鐘'}',
-                          style: const TextStyle(color: kInk),
-                        ),
-                        subtitle: Text(
-                          record.feeling ??
-                              (widget.isEnglish
-                                  ? 'No feeling recorded'
-                                  : '無感受記錄'),
-                          style: TextStyle(
-                            color: kSubInk.withValues(alpha: 0.9),
-                          ),
-                        ),
-                      );
-                    }),
+                        const SizedBox(height: 10),
+                        ..._buildDaySection(),
 
-                  const SizedBox(height: 24),
+                        const SizedBox(height: 20),
 
-                  // ===== 底部：回到主畫面 =====
-                  Center(
-                    child: SizedBox(
-                      width: 220,
-                      height: 44,
-                      child: ElevatedButton(
-                        onPressed: () {
-                          Navigator.popUntil(context, (route) => route.isFirst);
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: kPillBg,
-                          foregroundColor: kInk,
-                          shape: const StadiumBorder(),
-                          elevation: 0,
-                          textStyle: const TextStyle(
-                            fontFamily: 'PixelFont',
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
+                        // 呼吸記錄
+                        Text(
+                          widget.isEnglish
+                              ? 'Breathing Records (${_breathRecords.length} entries)'
+                              : '呼吸記錄（${_breathRecords.length} 筆記錄）',
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: kInk,
                           ),
                         ),
-                        child: Text(
-                          widget.isEnglish ? 'Back to Home' : '回到主畫面',
+                        const SizedBox(height: 10),
+                        ..._buildBreathSection(),
+
+                        const SizedBox(height: 24),
+
+                        // ===== 底部：回到主畫面 =====
+                        Center(
+                          child: SizedBox(
+                            width: 220,
+                            height: 44,
+                            child: ElevatedButton(
+                              onPressed: () {
+                                Navigator.popUntil(
+                                  context,
+                                  (route) => route.isFirst,
+                                );
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: kPillBg,
+                                foregroundColor: kInk,
+                                shape: const StadiumBorder(),
+                                elevation: 0,
+                                textStyle: const TextStyle(
+                                  fontFamily: 'PixelFont',
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              child: Text(
+                                widget.isEnglish ? 'Back to Home' : '回到主畫面',
+                              ),
+                            ),
+                          ),
                         ),
-                      ),
+                      ],
                     ),
                   ),
                 ],
               ),
             ),
-          ),
-        ],
+          );
+        },
       ),
     );
   }

@@ -4,12 +4,14 @@ import '../utils/api_client.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter/foundation.dart';
 
-// ===== 全域調色盤（與你原本一致） =====
+// ===== 全域調色盤（更新：依你的需求調整） =====
 const Color kBg = Color(0xFFDDEBD7); // 全頁底色
-const Color kInk = Color(0xFF2E5F3A); // 深綠主字/圖示
-const Color kBotBubble = Color(0xFFE7F1E3); // 機器人泡泡
-const Color kMeBubble = Color(0xFFB7C8B1); // 自己泡泡
-const Color kInputBg = Color(0xFFE7F1E3); // 輸入框底
+const Color kInk = Color(0xFF2E5F3A); // 深綠主字/圖示（保留給標題/圖示）
+const Color kBotBubble = Color(0xFFF6F6F6); // 機器人泡泡（更新）
+const Color kBotText = Color(0xFF395727); // 機器人文字（新增）
+const Color kMeBubble = Color(0xFF395727); // 自己泡泡（更新）
+const Color kMeText = Color(0xFFF6F6F6); // 自己文字（新增）
+const Color kInputBg = Color(0xFFE7F1E3); // 輸入框底（維持不變，如要改可告訴我）
 const Color kSendFg = Colors.white; // 送出鈕字/圖
 const Color kShadow = Color.fromARGB(18, 0, 0, 0);
 
@@ -55,14 +57,10 @@ class _ChatbotScreenState extends State<ChatbotScreen>
     super.initState();
     greeting =
         widget.isEnglish
-            ? 'Hello~ I\'m Smaily, what do you want to chat about?'
-            : '您好~我是Smaily，你想要聊聊什麼嗎？';
+            ? 'Hello~ I\'m Breasy, what do you want to chat about?'
+            : '您好~我是Breasy，你想要聊聊什麼嗎？';
 
-<<<<<<< HEAD
-    _currentConversation = 'default';
-=======
     _currentConversation = 'untitled_';
->>>>>>> d1ff696678951b3ed1799dfa6209ce0a6a2d3254
     _messages.add({
       'role': 'bot',
       'content': greeting,
@@ -89,8 +87,6 @@ class _ChatbotScreenState extends State<ChatbotScreen>
     );
   }
 
-<<<<<<< HEAD
-=======
   @override
   void dispose() {
     _typingTimer?.cancel();
@@ -100,7 +96,6 @@ class _ChatbotScreenState extends State<ChatbotScreen>
     super.dispose();
   }
 
->>>>>>> d1ff696678951b3ed1799dfa6209ce0a6a2d3254
   Future<void> _loadConversations() async {
     try {
       final data = await apiClient.getConversations();
@@ -129,12 +124,8 @@ class _ChatbotScreenState extends State<ChatbotScreen>
       final history = await apiClient.getChatHistory(conversation);
       setState(() {
         _messages.clear();
-<<<<<<< HEAD
-        if (history.isEmpty && conversation == 'default') {
-=======
 
         if (history.isEmpty) {
->>>>>>> d1ff696678951b3ed1799dfa6209ce0a6a2d3254
           _messages.add({
             'role': 'bot',
             'content': greeting,
@@ -142,8 +133,6 @@ class _ChatbotScreenState extends State<ChatbotScreen>
             'timestamp': DateTime.now(),
           });
         } else {
-<<<<<<< HEAD
-=======
           final firstContent = history.first['content']?.toString().trim();
           final isGreetingAlready = firstContent == greeting;
 
@@ -156,7 +145,6 @@ class _ChatbotScreenState extends State<ChatbotScreen>
             });
           }
 
->>>>>>> d1ff696678951b3ed1799dfa6209ce0a6a2d3254
           for (var msg in history) {
             _messages.add({
               'role': msg['role'] == 'user' ? 'user' : 'bot',
@@ -176,11 +164,7 @@ class _ChatbotScreenState extends State<ChatbotScreen>
           errorText.contains('not found')) {
         setState(() {
           _messages.clear();
-<<<<<<< HEAD
-          if (conversation == 'default') {
-=======
           if (conversation == 'untitled_') {
->>>>>>> d1ff696678951b3ed1799dfa6209ce0a6a2d3254
             _messages.add({
               'role': 'bot',
               'content': greeting,
@@ -232,10 +216,6 @@ class _ChatbotScreenState extends State<ChatbotScreen>
   Future<void> _sendMessage() async {
     final text = _controller.text.trim();
     if (text.isEmpty || _isLoading) return;
-<<<<<<< HEAD
-
-=======
->>>>>>> d1ff696678951b3ed1799dfa6209ce0a6a2d3254
     setState(() {
       _messages.add({
         'role': 'user',
@@ -256,10 +236,6 @@ class _ChatbotScreenState extends State<ChatbotScreen>
 
     try {
       StringBuffer responseBuffer = StringBuffer();
-<<<<<<< HEAD
-      bool hasReceivedName = false;
-      await for (var chunk in apiClient.chat(text)) {
-=======
 
       final stream =
           widget.isEnglish
@@ -267,40 +243,22 @@ class _ChatbotScreenState extends State<ChatbotScreen>
               : apiClient.chat(text, _currentConversation);
 
       await for (final chunk in stream) {
->>>>>>> d1ff696678951b3ed1799dfa6209ce0a6a2d3254
         if (kDebugMode) {
           print('[收到 chunk]: $chunk');
         }
 
         if (chunk.startsWith('CONVERSATION_NAME:')) {
-<<<<<<< HEAD
-          final newConversationName = chunk.replaceFirst(
-            'CONVERSATION_NAME:',
-            '',
-          );
-=======
           final newConversationName =
               chunk.replaceFirst('CONVERSATION_NAME:', '').trim();
->>>>>>> d1ff696678951b3ed1799dfa6209ce0a6a2d3254
 
           if (mounted && newConversationName != _currentConversation) {
             setState(() {
               _currentConversation = newConversationName;
-<<<<<<< HEAD
-              if (!_conversations.contains(_currentConversation)) {
-                _conversations.add(_currentConversation);
-              }
-            });
-          }
-
-          hasReceivedName = true;
-=======
               if (!_conversations.contains(newConversationName)) {
                 _conversations.add(newConversationName);
               }
             });
           }
->>>>>>> d1ff696678951b3ed1799dfa6209ce0a6a2d3254
         } else if (chunk.isNotEmpty) {
           responseBuffer.write(chunk);
           if (mounted) {
@@ -316,11 +274,7 @@ class _ChatbotScreenState extends State<ChatbotScreen>
         }
       }
 
-<<<<<<< HEAD
-      if (mounted && hasReceivedName) {
-=======
       if (mounted) {
->>>>>>> d1ff696678951b3ed1799dfa6209ce0a6a2d3254
         setState(() {
           _messages.last['isLoading'] = false;
           _messages.last['isTyping'] = false;
@@ -358,6 +312,148 @@ class _ChatbotScreenState extends State<ChatbotScreen>
     });
   }
 
+  // ====== 重新命名對話（新增） ======
+  Future<void> _renameConversation(String oldName) async {
+    if (oldName == 'untitled_') {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            widget.isEnglish
+                ? 'Cannot rename default conversation.'
+                : '無法重新命名預設對話。',
+          ),
+        ),
+      );
+      return;
+    }
+
+    final controller = TextEditingController(text: oldName);
+    final newName = await showDialog<String>(
+      context: context,
+      builder:
+          (ctx) => AlertDialog(
+            title: Text(widget.isEnglish ? 'Rename conversation' : '重新命名對話'),
+            content: TextField(
+              controller: controller,
+              autofocus: true,
+              maxLength: 40,
+              decoration: InputDecoration(
+                hintText: widget.isEnglish ? 'Enter new name' : '輸入新名稱',
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: Text(widget.isEnglish ? 'Cancel' : '取消'),
+              ),
+              TextButton(
+                onPressed: () {
+                  final text = controller.text.trim();
+                  Navigator.pop(ctx, text);
+                },
+                child: Text(widget.isEnglish ? 'OK' : '確定'),
+              ),
+            ],
+          ),
+    );
+
+    if (newName == null) return;
+    final normalized = newName.trim();
+    if (normalized.isEmpty || normalized == oldName) return;
+
+    if (normalized == 'untitled_') {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            widget.isEnglish ? 'This name is reserved.' : '此名稱為保留字，無法使用。',
+          ),
+        ),
+      );
+      return;
+    }
+    if (_conversations.contains(normalized)) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(widget.isEnglish ? 'Name already exists.' : '名稱已存在。'),
+        ),
+      );
+      return;
+    }
+
+    try {
+      // 需要後端支援 rename
+      await apiClient.renameConversation(oldName, normalized);
+
+      setState(() {
+        final idx = _conversations.indexOf(oldName);
+        if (idx != -1) _conversations[idx] = normalized;
+        if (_currentConversation == oldName) _currentConversation = normalized;
+      });
+
+      await _loadChatHistory(_currentConversation);
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(widget.isEnglish ? 'Renamed successfully.' : '重新命名成功。'),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(widget.isEnglish ? 'Failed to rename.' : '重新命名失敗。'),
+        ),
+      );
+    }
+  }
+
+  // ====== 刪除對話確認（新增） ======
+  Future<void> _confirmDelete(String conversation) async {
+    if (conversation == 'untitled_') {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            widget.isEnglish
+                ? 'Cannot delete default conversation.'
+                : '無法刪除預設對話。',
+          ),
+        ),
+      );
+      return;
+    }
+
+    final ok = await showDialog<bool>(
+      context: context,
+      builder:
+          (ctx) => AlertDialog(
+            title: Text(widget.isEnglish ? 'Delete conversation' : '刪除對話'),
+            content: Text(
+              (widget.isEnglish ? 'Are you sure to delete: ' : '確定要刪除：') +
+                  conversation,
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: Text(widget.isEnglish ? 'Cancel' : '取消'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: Text(widget.isEnglish ? 'Delete' : '刪除'),
+              ),
+            ],
+          ),
+    );
+
+    if (ok == true) {
+      await _deleteConversation(conversation);
+    }
+  }
+
   // ===== 氣泡 =====
   Widget _buildMessage(Map<String, dynamic> message) {
     final isUser = message['role'] == 'user';
@@ -365,6 +461,13 @@ class _ChatbotScreenState extends State<ChatbotScreen>
     final isTyping = message['isTyping'] == true;
     final alignment = isUser ? Alignment.centerRight : Alignment.centerLeft;
     final bgColor = isUser ? kMeBubble : kBotBubble;
+
+    // 依氣泡類型切換文字與時間顏色
+    final Color textColor = isUser ? kMeText : kBotText;
+    final Color timeColor =
+        isUser
+            ? kMeText.withValues(alpha: 0.7)
+            : kBotText.withValues(alpha: 0.6);
 
     final radius = BorderRadius.only(
       topLeft: const Radius.circular(14),
@@ -397,11 +500,7 @@ class _ChatbotScreenState extends State<ChatbotScreen>
               BoxShadow(color: kShadow, blurRadius: 6, offset: Offset(0, 2)),
             ],
           ),
-          child: const SizedBox(
-            width: 18,
-            height: 18,
-            child: CircularProgressIndicator(strokeWidth: 2, color: kInk),
-          ),
+          child: const _TypingDots(),
         ),
       );
     }
@@ -424,21 +523,9 @@ class _ChatbotScreenState extends State<ChatbotScreen>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-<<<<<<< HEAD
             Text(
               message['content'] ?? '',
-              style: const TextStyle(color: Colors.black87, fontSize: 16),
-            ),
-            const SizedBox(height: 4),
-=======
->>>>>>> d1ff696678951b3ed1799dfa6209ce0a6a2d3254
-            Text(
-              message['content'] ?? '',
-              style: TextStyle(
-                color: isUser ? Colors.white : kInk,
-                fontSize: 16,
-                height: 1.35,
-              ),
+              style: TextStyle(color: textColor, fontSize: 16, height: 1.35),
             ),
             const SizedBox(height: 6),
             Row(
@@ -446,11 +533,7 @@ class _ChatbotScreenState extends State<ChatbotScreen>
               children: [
                 Text(
                   formattedTime,
-                  style: TextStyle(
-                    color:
-                        isUser ? Colors.white70 : kInk.withValues(alpha: 0.6),
-                    fontSize: 12,
-                  ),
+                  style: TextStyle(color: timeColor, fontSize: 12),
                 ),
                 if (isTyping) ...[
                   const SizedBox(width: 6),
@@ -459,7 +542,7 @@ class _ChatbotScreenState extends State<ChatbotScreen>
                     height: 8,
                     decoration: const BoxDecoration(
                       shape: BoxShape.circle,
-                      color: kInk,
+                      color: kBotText, // 打字中的小點用深綠文字色
                     ),
                   ),
                 ],
@@ -484,73 +567,6 @@ class _ChatbotScreenState extends State<ChatbotScreen>
       key: _scaffoldKey,
       backgroundColor: kBg,
       appBar: AppBar(
-<<<<<<< HEAD
-        title: Text(
-          widget.isEnglish
-              ? 'Smaily AI - $_currentConversation'
-              : '情緒對話 AI - $_currentConversation',
-        ),
-        actions: [],
-      ),
-      drawer: Drawer(
-        child: ListView(
-          padding: EdgeInsets.zero,
-          children: [
-            DrawerHeader(
-              decoration: BoxDecoration(color: Theme.of(context).primaryColor),
-              child: Text(
-                widget.isEnglish ? 'Conversations' : '對話列表',
-                style: const TextStyle(color: Colors.white, fontSize: 24),
-              ),
-            ),
-            ..._conversations.map((conversation) {
-              return ListTile(
-                title: Text(conversation),
-                selected: conversation == _currentConversation,
-                onTap: () {
-                  _switchConversation(conversation);
-                  Navigator.pop(context);
-                },
-              );
-            }),
-            ListTile(
-              title: Text(widget.isEnglish ? 'New Conversation' : '新建對話'),
-              leading: const Icon(Icons.add),
-              onTap: () {
-                setState(() {
-                  _currentConversation = 'default';
-                  _messages.clear();
-                  _messages.add({
-                    'role': 'bot',
-                    'content': greeting,
-                    'isTyping': false,
-                    'timestamp': DateTime.now(),
-                  });
-                });
-                Navigator.pop(context);
-              },
-            ),
-            ListTile(
-              title: Text(widget.isEnglish ? 'Delete Conversation' : '刪除對話'),
-              leading: const Icon(Icons.delete),
-              onTap: () {
-                if (_conversations.isNotEmpty &&
-                    _currentConversation != 'default') {
-                  _deleteConversation(_currentConversation);
-                  Navigator.pop(context);
-                } else {
-                  showSnackBarSafe(
-                    widget.isEnglish
-                        ? 'Cannot delete default conversation.'
-                        : '無法刪除預設對話。',
-                  );
-                }
-              },
-            ),
-          ],
-        ),
-      ),
-=======
         backgroundColor: kBg,
         elevation: 0,
         titleSpacing: 0,
@@ -577,7 +593,7 @@ class _ChatbotScreenState extends State<ChatbotScreen>
         actions: [
           IconButton(
             tooltip: widget.isEnglish ? 'Conversation list' : '對話選單',
-            onPressed: _toggleMenu, // ← 改成觸發頂部面板
+            onPressed: _toggleMenu, // ← 觸發頂部面板
             icon: const Icon(Icons.list_alt_rounded, color: kInk),
           ),
           const SizedBox(width: 6),
@@ -585,7 +601,6 @@ class _ChatbotScreenState extends State<ChatbotScreen>
       ),
 
       // ===== 把主畫面與下拉面板疊在一起 =====
->>>>>>> d1ff696678951b3ed1799dfa6209ce0a6a2d3254
       body: Stack(
         children: [
           // 主畫面（聊天）
@@ -606,18 +621,11 @@ class _ChatbotScreenState extends State<ChatbotScreen>
 
                 // 輸入區
                 Container(
-<<<<<<< HEAD
-                  color: Colors.white.withAlpha(204),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 8,
-=======
                   padding: const EdgeInsets.only(
                     left: 12,
                     right: 12,
                     top: 6,
                     bottom: 12,
->>>>>>> d1ff696678951b3ed1799dfa6209ce0a6a2d3254
                   ),
                   color: kBg,
                   child: Row(
@@ -644,6 +652,7 @@ class _ChatbotScreenState extends State<ChatbotScreen>
                                       ? 'Enter message...'
                                       : '輸入訊息...',
                               hintStyle: TextStyle(
+                                // withOpacity -> withValues
                                 color: kInk.withValues(alpha: 0.55),
                               ),
                               border: InputBorder.none,
@@ -652,7 +661,10 @@ class _ChatbotScreenState extends State<ChatbotScreen>
                                 vertical: 12,
                               ),
                             ),
-                            style: const TextStyle(color: kInk, fontSize: 16),
+                            style: const TextStyle(
+                              color: kInk, // 輸入框內文字顏色（如想改也可告訴我）
+                              fontSize: 16,
+                            ),
                           ),
                         ),
                       ),
@@ -732,6 +744,14 @@ class _ChatbotScreenState extends State<ChatbotScreen>
                       );
                     }
                   },
+
+                  // 🔹 新增：逐項改名 / 刪除
+                  onRename: (c) async {
+                    await _renameConversation(c);
+                  },
+                  onDeleteItem: (c) async {
+                    await _confirmDelete(c);
+                  },
                 ),
               ),
             ),
@@ -747,11 +767,7 @@ class _ChatbotScreenState extends State<ChatbotScreen>
       setState(() {
         _conversations.remove(conversation);
         if (_currentConversation == conversation) {
-<<<<<<< HEAD
-          _currentConversation = 'default';
-=======
           _currentConversation = 'untitled_';
->>>>>>> d1ff696678951b3ed1799dfa6209ce0a6a2d3254
         }
         _messages.clear();
         _messages.add({
@@ -785,11 +801,9 @@ class _ChatbotScreenState extends State<ChatbotScreen>
       );
     }
   }
-<<<<<<< HEAD
-=======
 }
 
-// ===== 頂部下拉選單元件（沿用原 endDrawer 內容） =====
+// ===== 頂部下拉選單元件 =====
 class _TopMenuPanel extends StatelessWidget {
   final String title;
   final List<String> conversations;
@@ -797,7 +811,11 @@ class _TopMenuPanel extends StatelessWidget {
   final VoidCallback onClose;
   final ValueChanged<String> onSelect;
   final VoidCallback onNew;
-  final VoidCallback onDelete;
+  final VoidCallback onDelete; // 刪除當前
+
+  // 🔹 新增：逐項改名 / 刪除的回呼
+  final ValueChanged<String> onRename;
+  final ValueChanged<String> onDeleteItem;
 
   const _TopMenuPanel({
     required this.title,
@@ -807,6 +825,8 @@ class _TopMenuPanel extends StatelessWidget {
     required this.onSelect,
     required this.onNew,
     required this.onDelete,
+    required this.onRename,
+    required this.onDeleteItem,
   });
 
   @override
@@ -849,7 +869,7 @@ class _TopMenuPanel extends StatelessWidget {
             ),
             const Divider(color: Colors.white24, height: 1),
 
-            // 對話列表
+            // 對話列表（每一行可選、可改名、可刪除）
             Expanded(
               child: ListView.builder(
                 padding: const EdgeInsets.symmetric(vertical: 8),
@@ -864,6 +884,7 @@ class _TopMenuPanel extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
+                        // withOpacity -> withValues
                         color: Colors.white.withValues(
                           alpha: selected ? 1.0 : 0.86,
                         ),
@@ -871,14 +892,30 @@ class _TopMenuPanel extends StatelessWidget {
                             selected ? FontWeight.w700 : FontWeight.w500,
                       ),
                     ),
-                    trailing:
-                        selected
-                            ? const Icon(
-                              Icons.chevron_right,
-                              color: Colors.white,
-                            )
-                            : null,
                     onTap: () => onSelect(c),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          tooltip: 'Rename',
+                          onPressed: () => onRename(c),
+                          icon: const Icon(
+                            Icons.drive_file_rename_outline,
+                            color: Colors.white,
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: 'Delete',
+                          onPressed: () => onDeleteItem(c),
+                          icon: const Icon(
+                            Icons.delete_outline,
+                            color: Colors.white,
+                          ),
+                        ),
+                        if (selected)
+                          const Icon(Icons.chevron_right, color: Colors.white),
+                      ],
+                    ),
                   );
                 },
               ),
@@ -886,7 +923,7 @@ class _TopMenuPanel extends StatelessWidget {
 
             const Divider(color: Colors.white24, height: 1),
 
-            // 動作列
+            // 動作列（保留：新建 / 刪除當前）
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               child: Row(
@@ -911,7 +948,7 @@ class _TopMenuPanel extends StatelessWidget {
                       ),
                       onPressed: onDelete,
                       icon: const Icon(Icons.delete_outline),
-                      label: const Text('刪除'),
+                      label: const Text('刪除當前'),
                     ),
                   ),
                 ],
@@ -922,5 +959,52 @@ class _TopMenuPanel extends StatelessWidget {
       ),
     );
   }
->>>>>>> d1ff696678951b3ed1799dfa6209ce0a6a2d3254
+}
+
+class _TypingDots extends StatefulWidget {
+  const _TypingDots();
+  @override
+  State<_TypingDots> createState() => _TypingDotsState();
+}
+
+class _TypingDotsState extends State<_TypingDots>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _animation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 1200),
+      vsync: this,
+    )..repeat();
+    _animation = Tween<double>(begin: 0, end: 1).animate(_controller);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _animation,
+      builder: (_, _) {
+        final int dotCount = ((3 * _animation.value).floor() % 3) + 1;
+        final String dots = '.' * dotCount; // 使用 dots，避免未使用變數警告
+        return Text(
+          dots,
+          style: const TextStyle(
+            color: kBotText,
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            letterSpacing: 2,
+          ),
+        );
+      },
+    );
+  }
 }

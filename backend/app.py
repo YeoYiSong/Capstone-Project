@@ -1374,7 +1374,7 @@ def list_today_recos(user_id: int | str):
         try: conn.close()
         except: pass
 
-# ====== 推薦三格策略：1 Day 固定 + 2 Now 會刷新 ======
+# ====== 推薦兩格策略：Day 為主 + Now 為輔，合併分析 ======
 
 def _get_today_day_entry_text(user_id: str) -> str:
     """抓今天的 Day 內容（僅 1 筆）。"""
@@ -1438,6 +1438,8 @@ def _llm_pick_oils(context_text: str, cand_docs: list[str], k: int=1) -> tuple[l
         "並以 JSON 陣列輸出，每個元素格式："
         "{\"oil\":\"精油名稱\",\"reason\":\"推薦理由（至少20字）\"}。"
         "不得選名單以外的名稱。陣列長度必須等於請求的數量。"
+        "分析時，請以【今日主要日記 (Day)】的內容為主要判斷依據，"
+        "並以【今日即時紀錄 (Moments)】為輔助參考。"
     )
     messages = [
         {"role": "system", "content": sys + f"\n候選精油：\n{candidates}"},
@@ -1503,50 +1505,10 @@ def _find_oil_id_and_descs(names: list[str], cand_docs: list[str]) -> tuple[dict
         except: pass
 
 
-def _replace_today_day_reco(user_id: str, oil_id: int, reason: str, oil_desc: str):
-    """把今天的 Day 推薦（source='day'）覆蓋為這一支；只保留 1 筆 Day。"""
-    conn = get_db_connection()
-    if conn is None:
-        return
-    try:
-        with conn.cursor() as cur:
-            # 先刪今天所有 day，再插入 1 筆
-            cur.execute("""
-                DELETE FROM user_daily_oil_recos
-                WHERE user_id=%s AND reco_date=CURDATE() AND source='day'
-            """, (user_id,))
-            cur.execute("""
-                INSERT INTO user_daily_oil_recos
-                    (user_id, reco_date, oil_id, reason, oil_desc, source, created_at)
-                VALUES (%s, CURDATE(), %s, %s, %s, 'day', NOW())
-            """, (user_id, oil_id, reason, oil_desc))
-            conn.commit()
-    finally:
-        try: conn.close()
-        except: pass
-
-
-def _get_today_day_oil_ids(user_id: str) -> set[int]:
-    """取今天已固定的 day 精油 id（0~1 筆）。"""
-    conn = get_db_connection()
-    if conn is None:
-        return set()
-    try:
-        with conn.cursor() as cur:
-            cur.execute("""
-                SELECT oil_id
-                FROM user_daily_oil_recos
-                WHERE user_id=%s AND reco_date=CURDATE() AND source='day'
-            """, (user_id,))
-            return { int(r[0]) for r in cur.fetchall() if r and r[0] is not None }
-    finally:
-        try: conn.close()
-        except: pass
-
-
-def _replace_today_now_recos(user_id: str, pairs: list[tuple[int,str,str,str]]):
+def _replace_today_recos(user_id: str, pairs: list[tuple[int, str, str, str]]):
     """
-    覆蓋今天的兩格 Now（source='now'）為 pairs 前兩筆。
+    【新】覆蓋今天所有的推薦（最多 2 筆）。
+    使用 source=NULL 或 'combined' 來標記（這裡使用 NULL）。
     pairs: [(oil_id, name, reason, desc), ...]
     """
     conn = get_db_connection()
@@ -1554,17 +1516,18 @@ def _replace_today_now_recos(user_id: str, pairs: list[tuple[int,str,str,str]]):
         return
     try:
         with conn.cursor() as cur:
-            # 清掉今天所有 now
+            # 清掉今天所有推薦
             cur.execute("""
                 DELETE FROM user_daily_oil_recos
-                WHERE user_id=%s AND reco_date=CURDATE() AND source='now'
+                WHERE user_id=%s AND reco_date=CURDATE()
             """, (user_id,))
+            
             # 插回最多兩筆
             for oil_id, _nm, reason, desc in pairs[:2]:
                 cur.execute("""
                     INSERT INTO user_daily_oil_recos
                         (user_id, reco_date, oil_id, reason, oil_desc, source, created_at)
-                    VALUES (%s, CURDATE(), %s, %s, %s, 'now', NOW())
+                    VALUES (%s, CURDATE(), %s, %s, %s, NULL, NOW())
                 """, (user_id, oil_id, reason, desc))
             conn.commit()
     finally:
@@ -1574,9 +1537,11 @@ def _replace_today_now_recos(user_id: str, pairs: list[tuple[int,str,str,str]]):
 @app.route('/recommend_today_oil', methods=['GET'])
 def recommend_today_oil():
     """
-    三格制：
-      - 一格保留給 Day（寫 Day 時觸發，固定不刷新直到隔天）
-      - 兩格給 Now（每次寫 Now 觸發，會重新讀完今天所有 Now 重新挑 2 支覆蓋）
+    兩格制（新）：
+      - 每次觸發（無論 Day 或 Now），都重新抓取今天 *所有* Day 和 Now 內容。
+      - Day 內容權重 > Now 內容。
+      - 合併分析後，LLM 挑選 2 支精油。
+      - 刪除今天所有舊推薦，寫入這 2 支新推薦。
     每天換日清空：沿用 purge_outdated_recos。
     """
 
@@ -1584,13 +1549,13 @@ def recommend_today_oil():
         app.logger.warning(f"/recommend_today_oil error: {msg}")
         return jsonify({"status": "error", "error": msg}), code
 
-    # ★ 1) 參數解析：user_id 轉 int、source 正規化
+    # ★ 1) 參數解析：user_id 轉 int
     user_id = request.args.get('user_id', type=int)
-    source = (request.args.get('source') or '').strip().lower()  # 'day' | 'now'
+    # source = (request.args.get('source') or '').strip().lower()  # 'day' | 'now' (不再需要 source)
     if not user_id:
         return _json_error("請帶上 user_id（必須為整數）")
-    if source not in ('day', 'now'):
-        return _json_error("source 只能為 day 或 now")
+    # if source not in ('day', 'now'): (不再需要 source)
+    #     return _json_error("source 只能為 day 或 now")
 
     # ★ 2) 先清掉非今日資料（若失敗回 500）
     try:
@@ -1599,145 +1564,105 @@ def recommend_today_oil():
         app.logger.exception("purge_outdated_recos failed")
         return _json_error(f"清理舊推薦失敗: {e}", 500)
 
-    # ---------- Day：固定 1 格 ----------
-    if source == 'day':
+    # ★ 3) 獲取今天所有 Day 和 Now 的內容
+    try:
         day_text = _get_today_day_entry_text(user_id)
-        if not day_text:
-            return _json_error("今天沒有 Day 紀錄，無法產生 Day 推薦")
-
-        try:
-            # ★ 3) 你的函式回傳值要一致：這裡假設回 (cand_docs, cand_names)；若沒有 names 就用 _
-            cand_docs, _ = _embed_and_candidates(day_text, n_results=6)
-        except Exception as e:
-            app.logger.exception("_embed_and_candidates failed (day)")
-            return _json_error(f"Day 候選產生失敗: {e}", 500)
-
-        try:
-            oils, reasons = _llm_pick_oils(day_text, cand_docs, k=1)
-        except Exception as e:
-            app.logger.exception("_llm_pick_oils failed (day)")
-            return _json_error(f"Day 推薦失敗（LLM）: {e}", 500)
-
-        # ★ 4) 防空、防長度不一致
-        if not oils or len(oils) < 1:
-            return _json_error("Day 推薦結果為空（oils=[]）", 500)
-        if not reasons or len(reasons) < 1:
-            reasons = ["這款精油與今日 Day 紀錄高度相關。"]
-
-        oil_name = (oils[0] or "").strip()
-        reason   = (reasons[0] or "這款精油與今日 Day 紀錄高度相關。").strip()
-        if not oil_name:
-            return _json_error("Day 推薦得到的油品名稱為空", 500)
-
-        try:
-            ids, name2desc = _find_oil_id_and_descs([oil_name], cand_docs)
-        except Exception as e:
-            app.logger.exception("_find_oil_id_and_descs failed (day)")
-            return _json_error(f"查詢精油資料失敗: {e}", 500)
-
-        # ★ 5) 防 KeyError
-        oil_id = ids.get(oil_name)
-        if not isinstance(oil_id, int):
-            return _json_error(f"找不到油品 ID：{oil_name}", 500)
-        oil_desc = name2desc.get(oil_name, "查無精油功效")
-
-        try:
-            _replace_today_day_reco(user_id, oil_id, reason, oil_desc)
-        except Exception as e:
-            app.logger.exception("_replace_today_day_reco failed")
-            return _json_error(f"寫入 Day 推薦失敗: {e}", 500)
-
-        rows = list_today_recos(user_id)
-        return jsonify({
-            "status": "day_set",
-            "item": {"oil": oil_name, "oil_id": oil_id, "reason": reason, "oil_desc": oil_desc},
-            "all": rows
-        }), 200
-
-    # ---------- Now：兩格，每次刷新 ----------
-    else:
         now_text = _get_today_now_text(user_id)
-        if not now_text:
-            return _json_error("今天沒有 Now 紀錄，無法產生 Now 推薦")
+    except Exception as e:
+        app.logger.exception("Failed to fetch today's entries")
+        return _json_error(f"讀取今日紀錄失敗: {e}", 500)
 
+    if not day_text and not now_text:
+        return _json_error("今天沒有任何 Day 或 Now 紀錄，無法產生推薦")
+
+    # ★ 4) 組合帶有權重提示的上下文
+    context_parts = []
+    if day_text:
+        context_parts.append(f"【今日主要日記 (Day)】\n{day_text}")
+    if now_text:
+        context_parts.append(f"【今日即時紀錄 (Moments)】\n{now_text}")
+    context_text = "\n\n".join(context_parts)
+
+    # ★ 5) 向量檢索候選
+    try:
+        cand_docs, cand_names = _embed_and_candidates(context_text, n_results=8)
+    except Exception as e:
+        app.logger.exception("_embed_and_candidates failed (combined)")
+        return _json_error(f"候選產生失敗: {e}", 500)
+
+    # ★ 6) LLM 挑選 2 支
+    try:
+        # 請求 k=2
+        oils, reasons = _llm_pick_oils(context_text, cand_docs, k=2)
+    except Exception as e:
+        app.logger.exception("_llm_pick_oils failed (combined)")
+        return _json_error(f"推薦失敗（LLM）: {e}", 500)
+
+    oils = [ (o or "").strip() for o in (oils or []) if (o or "").strip() ]
+    reasons = reasons or []
+    if len(reasons) < len(oils):
+        # 補齊理由長度
+        reasons += ["這款精油與今日紀錄高度相關。"] * (len(oils) - len(reasons))
+
+    # ★ 7) 查找精油 ID 和描述
+    try:
+        ids, name2desc = _find_oil_id_and_descs(oils, cand_docs)
+    except Exception as e:
+        app.logger.exception("_find_oil_id_and_descs failed (combined)")
+        return _json_error(f"查詢精油資料失敗: {e}", 500)
+
+    # ★ 8) 組合並確保唯一性
+    pairs: list[tuple[int, str, str, str]] = []
+    chosen_ids = set()
+    
+    # 先放入 LLM 挑的
+    for name, reason in zip(oils, reasons):
+        oid = ids.get(name)
+        if not isinstance(oid, int):
+            continue
+        if oid in chosen_ids: # 確保 LLM 給的兩支不重複
+            continue
+        pairs.append((oid, name, reason or "這款精油與今日紀錄高度相關。", name2desc.get(name, "查無精油功效")))
+        chosen_ids.add(oid)
+
+    # 不足 2 支 → 從候選(cand_names)補
+    cand_names = [ (n or "").strip() for n in (cand_names or []) if (n or "").strip() ]
+    for nm in cand_names:
+        if len(pairs) >= 2:
+            break
         try:
-            cand_docs, cand_names = _embed_and_candidates(now_text, n_results=8)
-        except Exception as e:
-            app.logger.exception("_embed_and_candidates failed (now)")
-            return _json_error(f"Now 候選產生失敗: {e}", 500)
-
-        try:
-            oils, reasons = _llm_pick_oils(now_text, cand_docs, k=2)
-        except Exception as e:
-            app.logger.exception("_llm_pick_oils failed (now)")
-            return _json_error(f"Now 推薦失敗（LLM）: {e}", 500)
-
-        oils = [ (o or "").strip() for o in (oils or []) if (o or "").strip() ]
-        reasons = reasons or []
-        if len(reasons) < len(oils):
-            # 補齊理由長度
-            reasons += ["這款精油與今日 Now 紀錄高度相關。"] * (len(oils) - len(reasons))
-
-        try:
-            day_ids = set(_get_today_day_oil_ids(user_id) or [])
-        except Exception as e:
-            app.logger.exception("_get_today_day_oil_ids failed")
-            return _json_error(f"讀取 Day 已選失敗: {e}", 500)
-
-        try:
-            ids, name2desc = _find_oil_id_and_descs(oils, cand_docs)
-        except Exception as e:
-            app.logger.exception("_find_oil_id_and_descs failed (now-first)")
-            return _json_error(f"查詢精油資料失敗: {e}", 500)
-
-        pairs: list[tuple[int, str, str, str]] = []
-        chosen_ids = set()
-        # 先放入 LLM 挑的
-        for name, reason in zip(oils, reasons):
-            oid = ids.get(name)
-            if not isinstance(oid, int):
+            # 這裡再次查詢是為了確保 cand_names 裡的名稱能對應到 ID
+            nid_map, descs = _find_oil_id_and_descs([nm], cand_docs)
+            nid = nid_map.get(nm)
+            if not isinstance(nid, int):
                 continue
-            if oid in day_ids or oid in chosen_ids:
+            if nid in chosen_ids: # 確保不跟 LLM 選的重複
                 continue
-            pairs.append((oid, name, reason or "這款精油與今日 Now 紀錄高度相關。", name2desc.get(name, "查無精油功效")))
-            chosen_ids.add(oid)
+            pairs.append((nid, nm, "這款精油與今日紀錄高度相關。", descs.get(nm, "查無精油功效")))
+            chosen_ids.add(nid)
+        except Exception:
+            continue # 忽略查找失敗的候選
 
-        # 不足 2 支 → 從候選補（略過已選與 day）
-        cand_names = [ (n or "").strip() for n in (cand_names or []) if (n or "").strip() ]
-        for nm in cand_names:
-            if len(pairs) >= 2:
-                break
-            try:
-                nid_map, descs = _find_oil_id_and_descs([nm], cand_docs)
-                nid = nid_map.get(nm)
-                if not isinstance(nid, int):
-                    continue
-                if nid in day_ids or nid in chosen_ids:
-                    continue
-                pairs.append((nid, nm, "這款精油與今日 Now 紀錄高度相關。", descs.get(nm, "查無精油功效")))
-                chosen_ids.add(nid)
-            except Exception:
-                continue
+    if not pairs:
+        return _json_error("無法產生可用的油品推薦（可能候選庫無對應名稱或 ID 對不上）", 500)
 
-        if not pairs:
-            # 仍然選不到：給明確訊息，方便排查候選/嵌入庫內容
-            return _json_error("今天的 Now 推薦無法產生可用油品（可能候選庫無對應名稱或 ID 對不上）", 500)
+    # ★ 9) 寫入資料庫（覆蓋今天所有）
+    try:
+        _replace_today_recos(user_id, pairs[:2])
+    except Exception as e:
+        app.logger.exception("_replace_today_recos failed")
+        return _json_error(f"寫入推薦失敗: {e}", 500)
 
-        try:
-            _replace_today_now_recos(user_id, pairs[:2])
-        except Exception as e:
-            app.logger.exception("_replace_today_now_recos failed")
-            return _json_error(f"寫入 Now 推薦失敗: {e}", 500)
-
-        rows = list_today_recos(user_id)
-        return jsonify({
-            "status": "now_refreshed",
-            "items": [
-                {"oil_id": p[0], "oil": p[1], "reason": p[2], "oil_desc": p[3]}
-                for p in pairs[:2]
-            ],
-            "all": rows
-        }), 200
+    # ★ 10) 回傳
+    rows = list_today_recos(user_id) # 重新讀取，確保拿到剛寫入的
+    return jsonify({
+        "status": "refreshed",
+        "items": [
+            {"oil_id": p[0], "oil": p[1], "reason": p[2], "oil_desc": p[3]}
+            for p in pairs[:2]
+        ],
+        "all": rows
+    }), 200
 
 @app.route('/today_oil_recos', methods=['GET'])
 def today_oil_recos():  

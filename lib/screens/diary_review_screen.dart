@@ -25,11 +25,10 @@ class DiaryReviewScreen extends StatefulWidget {
 
 class DiaryReviewScreenState extends State<DiaryReviewScreen>
     with SingleTickerProviderStateMixin {
-  // ===== 調色盤 =====
-  static const Color kBg = Color(0xFFDDEBD7); // 整頁背景
-  static const Color kInk = Color(0xFF2E5F3A); // 標題/主色
-  static const Color kSubInk = Color(0xFF5E7F6A); // 次要文字
-  static const Color kPillBg = Color(0xFFE7F1E3); // 膠囊/淡底
+  static const Color kBg = Color(0xFFDDEBD7);
+  static const Color kInk = Color(0xFF2E5F3A);
+  static const Color kSubInk = Color(0xFF5E7F6A);
+  static const Color kPillBg = Color(0xFFE7F1E3);
 
   DateTime _selectedDay = DateTime.now();
   DateTime _focusedDay = DateTime.now();
@@ -38,11 +37,10 @@ class DiaryReviewScreenState extends State<DiaryReviewScreen>
   List<BreathRecord> _breathRecords = [];
   final ApiClient _apiClient = ApiClient();
 
-  // ===== 「已存入本子」動畫狀態 =====
-  late final AnimationController _fillCtrl; // 0 → 1
-  bool _shouldAnimate = false; // 只有 Day 儲存後才會開
-  DateTime? _animDate; // 目標日期
-  Color? _animColor; // 目標顏色
+  late final AnimationController _fillCtrl;
+  bool _shouldAnimate = false;
+  DateTime? _animDate;
+  Color? _animColor;
 
   @override
   void initState() {
@@ -56,7 +54,6 @@ class DiaryReviewScreenState extends State<DiaryReviewScreen>
       duration: const Duration(milliseconds: 1600),
     );
 
-    // 接 DayFeelingsScreen 回傳的動畫參數
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final args =
           ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
@@ -85,7 +82,6 @@ class DiaryReviewScreenState extends State<DiaryReviewScreen>
     super.dispose();
   }
 
-  // ================== 資料載入 ==================
   Future<void> _loadDiaryEntries(DateTime date) async {
     try {
       final entries = await _apiClient.getDiaryEntriesByDate(date);
@@ -127,7 +123,6 @@ class DiaryReviewScreenState extends State<DiaryReviewScreen>
     }
   }
 
-  // ================== 顏色工具 ==================
   Color _getColorForDay(DateTime date) {
     final key = DateTime(date.year, date.month, date.day);
     final hex = _dayColors[key];
@@ -138,7 +133,6 @@ class DiaryReviewScreenState extends State<DiaryReviewScreen>
         return Color(int.parse('0x$s'));
       } catch (_) {}
     }
-    // 沒資料就走柔和的淡綠
     return kPillBg;
   }
 
@@ -150,7 +144,6 @@ class DiaryReviewScreenState extends State<DiaryReviewScreen>
     return Color(int.parse(s, radix: 16));
   }
 
-  // ================== 月曆 cell ==================
   Widget _buildDayContainer(
     DateTime date, {
     bool isToday = false,
@@ -165,7 +158,6 @@ class DiaryReviewScreenState extends State<DiaryReviewScreen>
         date.day == _animDate!.day;
 
     return AspectRatio(
-      // 保持正方形
       aspectRatio: 1,
       child: Container(
         margin: const EdgeInsets.all(4.0),
@@ -173,15 +165,13 @@ class DiaryReviewScreenState extends State<DiaryReviewScreen>
         child: Stack(
           alignment: Alignment.center,
           children: [
-            // 底色方塊
             Container(
               decoration: BoxDecoration(
                 color: isToday && !isSelected ? kPillBg : baseColor,
-                borderRadius: BorderRadius.circular(8), // 可以加圓角
-                border:
-                    isSelected
-                        ? Border.all(color: kInk, width: 2)
-                        : Border.all(color: Colors.black12, width: 0.5),
+                borderRadius: BorderRadius.circular(8),
+                border: isSelected
+                    ? Border.all(color: kInk, width: 2)
+                    : Border.all(color: Colors.black12, width: 0.5),
               ),
               width: double.infinity,
               height: double.infinity,
@@ -190,16 +180,13 @@ class DiaryReviewScreenState extends State<DiaryReviewScreen>
                   '${date.day}',
                   style: TextStyle(
                     color: isSelected ? Colors.white : kInk,
-                    fontWeight:
-                        isToday || isSelected
-                            ? FontWeight.w700
-                            : FontWeight.w500,
+                    fontWeight: isToday || isSelected
+                        ? FontWeight.w700
+                        : FontWeight.w500,
                   ),
                 ),
               ),
             ),
-
-            // 動畫覆蓋層
             if (isTarget && _animColor != null)
               AnimatedBuilder(
                 animation: _fillCtrl,
@@ -224,26 +211,25 @@ class DiaryReviewScreenState extends State<DiaryReviewScreen>
     );
   }
 
-  // ================== 葉子分隔圖（貼近示意圖） ==================
   Widget _buildLeafDivider() {
     return Padding(
       padding: const EdgeInsets.only(top: 12, bottom: 8),
       child: SizedBox(
-        width: double.infinity, // 橫向滿版
+        width: double.infinity,
         child: Image.asset(
           'assets/picture/fullleaf.png',
-          fit: BoxFit.fitWidth, // ✅ 改這裡，不裁切，上下完整顯示
-          alignment: Alignment.center, // 圖片置中
+          fit: BoxFit.fitWidth,
+          alignment: Alignment.center,
           filterQuality: FilterQuality.high,
         ),
       ),
     );
   }
 
-  // ================== 區塊建構器（讓版面更乾淨） ==================
   List<Widget> _buildMomentTiles() {
-    final momentEntries =
-        _diaryEntries.where((entry) => entry.type == 'Moment').toList();
+    final momentEntries = _diaryEntries
+        .where((entry) => entry.type == 'Moment')
+        .toList();
     if (momentEntries.isEmpty) {
       return [
         Text(
@@ -270,16 +256,15 @@ class DiaryReviewScreenState extends State<DiaryReviewScreen>
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder:
-                  (_) => MomentFeelingsScreen(
-                    isEnglish: widget.isEnglish,
-                    date: entry.date,
-                    isReadOnly: true,
-                    emotions: entry.emotions,
-                    mixedColor: entry.mixedColor,
-                    moodText: entry.moodText,
-                    details: entry.details,
-                  ),
+              builder: (_) => MomentFeelingsScreen(
+                isEnglish: widget.isEnglish,
+                date: entry.date,
+                isReadOnly: true,
+                emotions: entry.emotions,
+                mixedColor: entry.mixedColor,
+                moodText: entry.moodText,
+                details: entry.details,
+              ),
             ),
           );
         },
@@ -290,18 +275,17 @@ class DiaryReviewScreenState extends State<DiaryReviewScreen>
   List<Widget> _buildDaySection() {
     final dayEntry = _diaryEntries.firstWhere(
       (entry) => entry.type == 'Day',
-      orElse:
-          () => DiaryEntry(
-            id: -1,
-            date: _selectedDay,
-            time: '',
-            type: 'Day',
-            emotions: [],
-            mixedColor: null,
-            moodText: null,
-            details: null,
-            isEnglish: widget.isEnglish,
-          ),
+      orElse: () => DiaryEntry(
+        id: -1,
+        date: _selectedDay,
+        time: '',
+        type: 'Day',
+        emotions: [],
+        mixedColor: null,
+        moodText: null,
+        details: null,
+        isEnglish: widget.isEnglish,
+      ),
     );
 
     if (dayEntry.id == -1) {
@@ -331,16 +315,15 @@ class DiaryReviewScreenState extends State<DiaryReviewScreen>
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder:
-                  (_) => DayFeelingsScreen(
-                    isEnglish: widget.isEnglish,
-                    date: dayEntry.date,
-                    isReadOnly: true,
-                    emotions: dayEntry.emotions,
-                    mixedColor: dayEntry.mixedColor,
-                    moodText: dayEntry.moodText,
-                    details: dayEntry.details,
-                  ),
+              builder: (_) => DayFeelingsScreen(
+                isEnglish: widget.isEnglish,
+                date: dayEntry.date,
+                isReadOnly: true,
+                emotions: dayEntry.emotions,
+                mixedColor: dayEntry.mixedColor,
+                moodText: dayEntry.moodText,
+                details: dayEntry.details,
+              ),
             ),
           );
         },
@@ -379,7 +362,6 @@ class DiaryReviewScreenState extends State<DiaryReviewScreen>
     }).toList();
   }
 
-  // ================== UI ==================
   @override
   Widget build(BuildContext context) {
     if (widget.isDiaryLocked) {
@@ -394,6 +376,7 @@ class DiaryReviewScreenState extends State<DiaryReviewScreen>
       appBar: AppBar(
         backgroundColor: kBg,
         elevation: 0,
+        automaticallyImplyLeading: false, // ← 移除左上角返回與其功能
         title: Text(widget.isEnglish ? 'Diary Review' : '本子回顧'),
         titleTextStyle: const TextStyle(
           color: kInk,
@@ -408,8 +391,8 @@ class DiaryReviewScreenState extends State<DiaryReviewScreen>
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder:
-                      (_) => SearchDiaryScreen(isEnglish: widget.isEnglish),
+                  builder: (_) =>
+                      SearchDiaryScreen(isEnglish: widget.isEnglish),
                 ),
               );
             },
@@ -417,8 +400,6 @@ class DiaryReviewScreenState extends State<DiaryReviewScreen>
           ),
         ],
       ),
-
-      // 改為「單一可捲動」以避免葉子放大時，底下內容被擠到看不見
       body: LayoutBuilder(
         builder: (context, constraints) {
           return SingleChildScrollView(
@@ -428,7 +409,6 @@ class DiaryReviewScreenState extends State<DiaryReviewScreen>
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // 左上角「已存入本子！」，隨動畫淡出
                   if (_shouldAnimate)
                     Align(
                       alignment: Alignment.centerLeft,
@@ -461,8 +441,6 @@ class DiaryReviewScreenState extends State<DiaryReviewScreen>
                         ),
                       ),
                     ),
-
-                  // ===== 月曆 =====
                   Theme(
                     data: Theme.of(context).copyWith(
                       splashColor: Colors.transparent,
@@ -473,23 +451,19 @@ class DiaryReviewScreenState extends State<DiaryReviewScreen>
                       firstDay: DateTime.utc(2020, 1, 1),
                       lastDay: DateTime.utc(2030, 12, 31),
                       focusedDay: _focusedDay,
-                      selectedDayPredicate:
-                          (day) => isSameDay(_selectedDay, day),
+                      selectedDayPredicate: (day) =>
+                          isSameDay(_selectedDay, day),
                       onDaySelected: (selectedDay, focusedDay) {
                         setState(() {
                           _selectedDay = selectedDay;
                           _focusedDay = focusedDay;
-                          _shouldAnimate = false; // 手動點日期時取消動畫狀態
+                          _shouldAnimate = false;
                         });
                         _loadDiaryEntries(selectedDay);
                         _loadBreathRecords(selectedDay);
                       },
                       calendarFormat: CalendarFormat.month,
-                      locale:
-                          widget.isEnglish
-                              ? 'en_US'
-                              : 'zh_TW', // ✅ 改成 zh_TW 比較正確
-                      // 把預設 decoration 全設透明，交給 _buildDayContainer 負責顏色
+                      locale: widget.isEnglish ? 'en_US' : 'zh_TW',
                       calendarStyle: const CalendarStyle(
                         isTodayHighlighted: false,
                         defaultDecoration: BoxDecoration(
@@ -521,7 +495,6 @@ class DiaryReviewScreenState extends State<DiaryReviewScreen>
                           color: Colors.transparent,
                         ),
                       ),
-
                       headerStyle: HeaderStyle(
                         titleTextStyle: const TextStyle(
                           color: kInk,
@@ -537,7 +510,6 @@ class DiaryReviewScreenState extends State<DiaryReviewScreen>
                           color: kInk,
                         ),
                       ),
-
                       daysOfWeekStyle: const DaysOfWeekStyle(
                         weekdayStyle: TextStyle(
                           color: kSubInk,
@@ -548,35 +520,26 @@ class DiaryReviewScreenState extends State<DiaryReviewScreen>
                           fontWeight: FontWeight.w600,
                         ),
                       ),
-
-                      // 一律用你自訂的 _buildDayContainer 來畫
                       calendarBuilders: CalendarBuilders(
-                        todayBuilder:
-                            (context, date, _) =>
-                                _buildDayContainer(date, isToday: true),
-                        selectedBuilder:
-                            (context, date, _) =>
-                                _buildDayContainer(date, isSelected: true),
-                        defaultBuilder:
-                            (context, date, _) => _buildDayContainer(date),
-                        outsideBuilder:
-                            (context, date, _) => _buildDayContainer(date),
-                        disabledBuilder:
-                            (context, date, _) => _buildDayContainer(date),
+                        todayBuilder: (context, date, _) =>
+                            _buildDayContainer(date, isToday: true),
+                        selectedBuilder: (context, date, _) =>
+                            _buildDayContainer(date, isSelected: true),
+                        defaultBuilder: (context, date, _) =>
+                            _buildDayContainer(date),
+                        outsideBuilder: (context, date, _) =>
+                            _buildDayContainer(date),
+                        disabledBuilder: (context, date, _) =>
+                            _buildDayContainer(date),
                       ),
                     ),
                   ),
-
-                  // ===== 葉子分隔圖（新）=====
                   _buildLeafDivider(),
-
-                  // ===== 內容 =====
                   Padding(
                     padding: const EdgeInsets.all(16.0),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // 當下感受
                         Text(
                           widget.isEnglish
                               ? 'Moment Feelings (${_diaryEntries.where((e) => e.type == "Moment").length} entries)'
@@ -589,10 +552,7 @@ class DiaryReviewScreenState extends State<DiaryReviewScreen>
                         ),
                         const SizedBox(height: 10),
                         ..._buildMomentTiles(),
-
                         const SizedBox(height: 20),
-
-                        // 整天感受
                         Text(
                           widget.isEnglish ? 'Day Feelings' : '整天感受',
                           style: const TextStyle(
@@ -603,10 +563,7 @@ class DiaryReviewScreenState extends State<DiaryReviewScreen>
                         ),
                         const SizedBox(height: 10),
                         ..._buildDaySection(),
-
                         const SizedBox(height: 20),
-
-                        // 呼吸記錄
                         Text(
                           widget.isEnglish
                               ? 'Breathing Records (${_breathRecords.length} entries)'
@@ -619,10 +576,7 @@ class DiaryReviewScreenState extends State<DiaryReviewScreen>
                         ),
                         const SizedBox(height: 10),
                         ..._buildBreathSection(),
-
                         const SizedBox(height: 24),
-
-                        // ===== 底部：回到主畫面 =====
                         Center(
                           child: SizedBox(
                             width: 220,

@@ -447,14 +447,13 @@ class ApiClient {
       throw Exception('無法傳送聊天訊息：用戶未登入');
     }
 
-    final request =
-        http.Request('POST', Uri.parse('${getBaseUrl()}/chat'))
-          ..headers['Content-Type'] = 'application/json'
-          ..body = jsonEncode({
-            'message': message,
-            'user_id': userId,
-            'conversation': conversation,
-          });
+    final request = http.Request('POST', Uri.parse('${getBaseUrl()}/chat'))
+      ..headers['Content-Type'] = 'application/json'
+      ..body = jsonEncode({
+        'message': message,
+        'user_id': userId,
+        'conversation': conversation,
+      });
 
     try {
       final streamedResponse = await request.send();
@@ -489,14 +488,13 @@ class ApiClient {
       throw Exception('無法傳送英文聊天訊息：用戶未登入');
     }
 
-    final request =
-        http.Request('POST', Uri.parse('${getBaseUrl()}/chatEN'))
-          ..headers['Content-Type'] = 'application/json'
-          ..body = jsonEncode({
-            'message': message,
-            'user_id': userId,
-            'conversation': conversation,
-          });
+    final request = http.Request('POST', Uri.parse('${getBaseUrl()}/chatEN'))
+      ..headers['Content-Type'] = 'application/json'
+      ..body = jsonEncode({
+        'message': message,
+        'user_id': userId,
+        'conversation': conversation,
+      });
 
     try {
       final streamedResponse = await request.send();

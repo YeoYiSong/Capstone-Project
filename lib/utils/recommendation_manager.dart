@@ -6,12 +6,12 @@ import 'api_client.dart';
 /// 推薦狀態
 enum RecoStatus { idle, loading, ready, notApplicable, error }
 
-/// 推薦狀態封裝（今天最多 3 筆）
+/// 推薦狀態封裝（今天最多 2 筆）
 class RecommendationState {
   final RecoStatus status;
 
-  /// 今天全部推薦（最多 3 筆）。每筆結構：
-  /// { id, name, price, reason, oil_desc?, source: 'day'|'now', created_at? }
+  /// 今天全部推薦（最多 2 筆）。每筆結構：
+  /// { id, name, price, reason, oil_desc?, source: null, created_at? }
   final List<Map<String, dynamic>> items;
   final String? error;
 
@@ -76,14 +76,16 @@ class RecommendationManager {
       return;
     }
 
-    final src = isDay ? 'day' : 'now';
+    // final src = isDay ? 'day' : 'now'; // <-- 不再需要
 
     // 1) 直接 fire-and-forget 觸發（不管成功與否；不阻塞）
     unawaited(
       _api
-          .recommendTodayOil(source: src)
+          .recommendTodayOil() // <-- 修改：移除 source
           .timeout(const Duration(seconds: 3))
-          .then((_) => debugPrint('[Reco] 已觸發 recommend_today_oil?source=$src'))
+          .then(
+            (_) => debugPrint('[Reco] 已觸發 recommend_today_oil'),
+          ) // <-- 修改：移除 source
           .catchError((e, _) {
             debugPrint('[Reco] 觸發失敗（忽略以免卡 UI）：$e');
           }),
@@ -146,9 +148,12 @@ class RecommendationManager {
         return;
       }
 
-      // Step 3: 有日記但無推薦 → 觸發一次（來源優先 day，其次 now；都觸發也沒關係，後端自去重）
-      if (hasDay) _fireRecommend('day');
-      if (hasNow) _fireRecommend('now');
+      // Step 3: 有日記但無推薦 → 觸發一次 (後端會合併 day/now)
+      if (hasDay || hasNow) {
+        // <-- 修改
+        debugPrint('[Reco][ensure] 偵測到日記，觸發推薦');
+        _fireRecommend(); // <-- 修改
+      }
 
       // Step 4: 8 秒後再看一次，若仍無推薦且當天嘗試未達上限，補觸發一次
       Future.delayed(const Duration(seconds: 8), () async {
@@ -161,8 +166,7 @@ class RecommendationManager {
         if (_ensureAttempts < 2) {
           _ensureAttempts += 1;
           debugPrint('[Reco][ensure] 延遲檢查後仍無推薦，進行第 $_ensureAttempts 次補觸發');
-          if (hasDay) _fireRecommend('day');
-          if (hasNow) _fireRecommend('now');
+          if (hasDay || hasNow) _fireRecommend(); // <-- 修改：統一觸發
         } else {
           debugPrint('[Reco][ensure] 延遲檢查仍無推薦，但已達嘗試上限');
         }
@@ -174,12 +178,13 @@ class RecommendationManager {
   }
 
   // Fire-and-forget 觸發（短超時＋吞錯），不回寫 state
-  void _fireRecommend(String source) {
+  void _fireRecommend() {
+    // <-- 修改：移除 source 參數
     unawaited(
       _api
-          .recommendTodayOil(source: source)
+          .recommendTodayOil() // <-- 修改：移除 source
           .timeout(const Duration(seconds: 3))
-          .then((_) => debugPrint('[Reco] fire recommend, source=$source'))
+          .then((_) => debugPrint('[Reco] fire recommend')) // <-- 修改
           .catchError((e, _) {
             debugPrint('[Reco] fire recommend 失敗（忽略）：$e');
           }),
@@ -241,22 +246,19 @@ class RecommendationManager {
 
     try {
       final list = await _api.getTodayOilRecos(); // 後端回清單
-      final items =
-          list.map<Map<String, dynamic>>((e) {
-            return {
-              'id': _toInt(e['oil_id']) ?? _toInt(e['id']) ?? 0,
-              'name': (e['oil'] ?? e['name'] ?? '').toString(),
-              'price': _toInt(e['price']) ?? 0,
-              'reason': (e['reason'] ?? '').toString(),
-              if (e['oil_desc'] is String &&
-                  (e['oil_desc'] as String).isNotEmpty)
-                'oil_desc': e['oil_desc'],
-              if (e['source'] != null)
-                'source': e['source'].toString(), // day/now
-              if (e['created_at'] != null)
-                'created_at': e['created_at'].toString(),
-            };
-          }).toList();
+      final items = list.map<Map<String, dynamic>>((e) {
+        return {
+          'id': _toInt(e['oil_id']) ?? _toInt(e['id']) ?? 0,
+          'name': (e['oil'] ?? e['name'] ?? '').toString(),
+          'price': _toInt(e['price']) ?? 0,
+          'reason': (e['reason'] ?? '').toString(),
+          if (e['oil_desc'] is String && (e['oil_desc'] as String).isNotEmpty)
+            'oil_desc': e['oil_desc'],
+          if (e['source'] != null)
+            'source': e['source'].toString(), // 雖然新邏輯是 NULL，但保留相容
+          if (e['created_at'] != null) 'created_at': e['created_at'].toString(),
+        };
+      }).toList();
 
       _stopProgress(to100: true);
 
@@ -268,7 +270,7 @@ class RecommendationManager {
         );
         debugPrint('[Reco] <<< 結束（$reason）：notApplicable（今天沒有推薦）');
       } else {
-        final capped = items.take(3).toList();
+        final capped = items.take(2).toList(); // <-- 修改：新邏輯最多 2 筆
         state.value = RecommendationState(
           status: RecoStatus.ready,
           items: capped,

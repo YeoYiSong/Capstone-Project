@@ -5,7 +5,7 @@ import 'package:flutter/foundation.dart'
 const bool kAndroidUseLan = true; // 真機測試 true；模擬器改 false
 
 /// ✅ 你的電腦在同一個 Wi-Fi 的 IPv4
-const String kPcIp = '10.104.35.230';
+const String kPcIp = '192.168.137.227'; //10.107.38.191
 
 String getBaseUrl() {
   if (kIsWeb) {

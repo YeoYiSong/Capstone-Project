@@ -74,12 +74,24 @@ class MomentFeelingsScreenState extends State<MomentFeelingsScreen> {
     'angry': '憤怒',
   };
 
+  // 正規化：統一情緒名稱為中文，並確保有數值 value（從 value/score/level/intensity 任一來源）
   List<Map<String, dynamic>> _normalizeForMix(List<Map<String, dynamic>> list) {
     return list.map((e) {
       final raw = (e['emotion'] ?? '').toString();
       final key = _aliasToKey[raw] ?? raw;
       final cn = _keyToChinese[key] ?? raw;
-      return {...e, 'emotion': cn};
+
+      final dynamic vRaw =
+          e['value'] ?? e['score'] ?? e['level'] ?? e['intensity'] ?? 1;
+      double v;
+      if (vRaw is num) {
+        v = vRaw.toDouble();
+      } else {
+        v = double.tryParse(vRaw.toString()) ?? 1.0;
+      }
+      if (v < 1) v = 1.0;
+
+      return {...e, 'emotion': cn, 'value': v};
     }).toList();
   }
 
@@ -175,13 +187,18 @@ class MomentFeelingsScreenState extends State<MomentFeelingsScreen> {
     return hasText || hasEmotions;
   }
 
+  // 用已儲存的情緒清單（含數值）即時計算混色，餵給 centerFillColor
   Color _computeCenterColor() {
     final fromDb = widget.mixedColor?.trim() ?? '';
     if (fromDb.isNotEmpty) return _hexToColor(fromDb);
 
-    final combined = <Map<String, dynamic>>[
-      ..._selectedEmotions.map((e) => Map<String, dynamic>.from(e)),
-    ];
+    // 優先用當前 selections；若為唯讀或 selections 為空，fallback 到 widget.emotions
+    final base = _selectedEmotions.isNotEmpty
+        ? _selectedEmotions
+        : (widget.emotions ?? const []);
+
+    // 合併 hover 暫存
+    final combined = <Map<String, dynamic>>[...base];
     if (_hoverTemp.isNotEmpty) {
       final t = _hoverTemp.first;
       final i = combined.indexWhere((e) => e['emotion'] == t['emotion']);
@@ -194,7 +211,7 @@ class MomentFeelingsScreenState extends State<MomentFeelingsScreen> {
     if (combined.isEmpty) return Colors.transparent;
 
     final normalized = _normalizeForMix(combined);
-    final hex = mixColorsWithAlpha(normalized);
+    final hex = mixColorsWithAlpha(normalized); // 不動你的混色/透明度邏輯
     if (hex.trim().isEmpty) return Colors.transparent;
     return _hexToColor(hex);
   }

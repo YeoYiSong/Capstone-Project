@@ -50,6 +50,9 @@ class BreathingScreenState extends State<BreathingScreen> {
   // ✅ 實際跑的秒數
   int _elapsedSeconds = 0;
 
+  // 引導模式：是否播放前言（由對話框決定）
+  bool _guidedPlayIntro = false;
+
   String? _userId;
 
   @override
@@ -102,38 +105,59 @@ class BreathingScreenState extends State<BreathingScreen> {
     _completeSub = null;
   }
 
+  Future<void> _playOnce(String assetPath) async {
+    await _audioPlayer.stop();
+    await _audioPlayer.setReleaseMode(ReleaseMode.stop);
+    await _audioPlayer.play(AssetSource(assetPath));
+  }
+
+  Future<void> _playBrownLoop() async {
+    await _audioPlayer.stop();
+    await _audioPlayer.setReleaseMode(ReleaseMode.loop);
+    await _audioPlayer.play(
+      AssetSource('scenario_music/relaxing-smoothed-brown-noise.mp3'),
+    );
+  }
+
+  void _onceThen(Future<void> Function() next) {
+    _cancelAudioCompleteSub();
+    _completeSub = _audioPlayer.onPlayerComplete.listen((_) async {
+      if (!mounted || step != 2 || !_isPlaying) return;
+      await next();
+    });
+  }
+
   /// 開始依模式播放：
-  /// - natural: 直接 loop guide.mp3
-  /// - guided : 先播 intro.mp3，結束後 loop guide.mp3
+  /// - natural: 直接循環 brown noise
+  /// - guided : 依使用者選擇
+  ///     - 播放前言：intro → guide → 循環 brown noise
+  ///     - 略過前言：guide → 循環 brown noise
   Future<void> _playAudioForCurrentMode() async {
     _cancelAudioCompleteSub();
     try {
       if (_mode == BreathMode.natural) {
-        // 直接進入引導音 loop
-        await _startGuideLoop();
+        // ✅ 只循環環境音
+        await _playBrownLoop();
       } else {
-        // 先播 intro 一次
-        await _audioPlayer.stop();
-        await _audioPlayer.setReleaseMode(ReleaseMode.stop);
-        await _audioPlayer.play(AssetSource('breath/intro.mp3'));
-        _cancelAudioCompleteSub();
-        _completeSub = _audioPlayer.onPlayerComplete.listen((_) async {
-          // intro 結束 → 進入 guide loop
-          await _startGuideLoop();
-        });
+        // ✅ 引導模式：先依選擇播放
+        if (_guidedPlayIntro) {
+          await _playOnce('breath/intro.mp3');
+          _onceThen(() async {
+            await _playOnce('breath/guide.mp3');
+            _onceThen(() async {
+              await _playBrownLoop();
+            });
+          });
+        } else {
+          await _playOnce('breath/guide.mp3');
+          _onceThen(() async {
+            await _playBrownLoop();
+          });
+        }
       }
     } catch (_) {
       _toast(widget.isEnglish ? 'Failed to play audio' : '無法播放音檔');
     }
-  }
-
-  /// 進入 guide.mp3 循環播放，直到時間到或停止
-  Future<void> _startGuideLoop() async {
-    _cancelAudioCompleteSub();
-    await _audioPlayer.stop();
-    await _audioPlayer.setReleaseMode(ReleaseMode.loop);
-    await _audioPlayer.play(AssetSource('breath/guide.mp3'));
-    // loop 模式下不需要 onPlayerComplete 監聽
   }
 
   // ====== 流程控制 ======
@@ -141,15 +165,25 @@ class BreathingScreenState extends State<BreathingScreen> {
     setState(() => step = 1);
   }
 
-  void _startExercise() {
+  Future<void> _startExercise() async {
+    // 引導模式：先詢問是否播放前言
+    if (_mode == BreathMode.guided) {
+      final ans = await _askPlayIntroDialog();
+      if (ans == null) return; // 使用者關閉對話框，不啟動
+      _guidedPlayIntro = ans;
+    } else {
+      _guidedPlayIntro = false;
+    }
+
     _elapsedSeconds = 0; // ✅ 重置實際時長
     setState(() {
       step = 2;
       _isPlaying = true;
       _remainingSeconds = duration * 60;
     });
+
     // 依模式啟動音訊
-    _playAudioForCurrentMode();
+    await _playAudioForCurrentMode();
     _startTimer();
   }
 
@@ -382,14 +416,13 @@ class BreathingScreenState extends State<BreathingScreen> {
 
   // 1：準備頁 —— 全屏葉子 + 內容完全置中
   Widget _buildPrepare() {
-    final tip =
-        (_mode == BreathMode.guided)
-            ? (widget.isEnglish
-                ? 'Guided awareness breathing. The intro will play this time.'
-                : '引導覺察呼吸，本次會播放前言。')
-            : (widget.isEnglish
-                ? 'Just notice your breath. No guide will play.'
-                : '自然覺察呼吸，本次不會播放引導。');
+    final tip = (_mode == BreathMode.guided)
+        ? (widget.isEnglish
+              ? 'Guided awareness breathing. The intro will play this time.'
+              : '引導覺察呼吸，本次會播放前言。')
+        : (widget.isEnglish
+              ? 'Just notice your breath. No guide will play.'
+              : '自然覺察呼吸，本次不會播放引導。');
 
     return _bgFrame(
       appBar: AppBar(
@@ -456,10 +489,9 @@ class BreathingScreenState extends State<BreathingScreen> {
 
   // 2：進行中 —— 全屏葉子 + 標題/時間/進度條完全置中
   Widget _buildRunning() {
-    final title =
-        (_mode == BreathMode.guided)
-            ? (widget.isEnglish ? 'Guided breathing' : '引導呼吸進行中')
-            : (widget.isEnglish ? 'Natural breathing' : '自然呼吸進行中');
+    final title = (_mode == BreathMode.guided)
+        ? (widget.isEnglish ? 'Guided breathing' : '引導呼吸進行中')
+        : (widget.isEnglish ? 'Natural breathing' : '自然呼吸進行中');
 
     final progress = _remainingSeconds / (duration * 60);
 
@@ -542,14 +574,12 @@ class BreathingScreenState extends State<BreathingScreen> {
             children: [
               Expanded(
                 child: _pillIconButton(
-                  icon:
-                      _isPlaying
-                          ? Icons.pause_rounded
-                          : Icons.play_arrow_rounded,
-                  label:
-                      _isPlaying
-                          ? (widget.isEnglish ? 'Pause' : '暫停')
-                          : (widget.isEnglish ? 'Resume' : '繼續'),
+                  icon: _isPlaying
+                      ? Icons.pause_rounded
+                      : Icons.play_arrow_rounded,
+                  label: _isPlaying
+                      ? (widget.isEnglish ? 'Pause' : '暫停')
+                      : (widget.isEnglish ? 'Resume' : '繼續'),
                   onTap: _togglePause,
                 ),
               ),
@@ -570,10 +600,9 @@ class BreathingScreenState extends State<BreathingScreen> {
 
   // 3：完成（保留）
   Widget _buildDone() {
-    final completeHint =
-        widget.isEnglish
-            ? 'Take a moment to note how you feel after breathing.'
-            : '花一點時間記下呼吸後的感受。';
+    final completeHint = widget.isEnglish
+        ? 'Take a moment to note how you feel after breathing.'
+        : '花一點時間記下呼吸後的感受。';
 
     return Scaffold(
       backgroundColor: kBg,
@@ -666,14 +695,13 @@ class BreathingScreenState extends State<BreathingScreen> {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder:
-                        (_) => RecordFeelingsScreen(
-                          isEnglish: widget.isEnglish,
-                          date: DateTime.now(),
-                          userId: _userId!,
-                          duration: actualMinutes, // ✅ 實際分鐘
-                          min: actualMinutes, // ✅ 實際分鐘
-                        ),
+                    builder: (_) => RecordFeelingsScreen(
+                      isEnglish: widget.isEnglish,
+                      date: DateTime.now(),
+                      userId: _userId!,
+                      duration: actualMinutes, // ✅ 實際分鐘
+                      min: actualMinutes, // ✅ 實際分鐘
+                    ),
                   ),
                 );
               },
@@ -699,11 +727,10 @@ class BreathingScreenState extends State<BreathingScreen> {
                 Navigator.pushAndRemoveUntil(
                   context,
                   MaterialPageRoute(
-                    builder:
-                        (_) => HomeScreen(
-                          username: 'User',
-                          isEnglish: widget.isEnglish,
-                        ),
+                    builder: (_) => HomeScreen(
+                      username: 'User',
+                      isEnglish: widget.isEnglish,
+                    ),
                   ),
                   (route) => false,
                 );
@@ -727,6 +754,97 @@ class BreathingScreenState extends State<BreathingScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  // ===== 對話框：是否播放前言 =====
+  Future<bool?> _askPlayIntroDialog() {
+    final title = widget.isEnglish ? 'Play Intro?' : '要播放前言嗎？';
+    final desc = widget.isEnglish
+        ? 'You can play a short intro first, then the guide, and finally brown noise until time is up.'
+        : '可以先播放簡短前言，再播放引導，最後是環境音直到時間結束。';
+    final yes = widget.isEnglish ? 'Play Intro' : '播放前言';
+    final no = widget.isEnglish ? 'Skip Intro' : '略過前言';
+
+    return showDialog<bool>(
+      context: context,
+      barrierDismissible: true,
+      builder: (ctx) {
+        return AlertDialog(
+          backgroundColor: kPill,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: Text(
+            title,
+            style: const TextStyle(
+              color: kInk,
+              fontWeight: FontWeight.w900,
+              fontSize: 20,
+            ),
+          ),
+          content: Text(
+            desc,
+            style: const TextStyle(
+              color: kSubInk,
+              fontWeight: FontWeight.w600,
+              height: 1.35,
+            ),
+          ),
+          actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+          actions: [
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () => Navigator.of(ctx).pop(true),
+                    icon: const Icon(Icons.record_voice_over_rounded, size: 20),
+                    label: Text(yes),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: kPill,
+                      foregroundColor: kInk,
+                      elevation: 0,
+                      shape: const StadiumBorder(),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                      textStyle: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                      ),
+                      side: const BorderSide(color: kInk, width: 1),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () => Navigator.of(ctx).pop(false),
+                    icon: const Icon(Icons.skip_next_rounded, size: 20),
+                    label: Text(no),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: kPill,
+                      foregroundColor: kInk,
+                      elevation: 0,
+                      shape: const StadiumBorder(),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                      textStyle: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                      ),
+                      side: const BorderSide(color: kInk, width: 1),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -855,12 +973,9 @@ class _ModeWheelState extends State<_ModeWheel> {
                 child: AnimatedDefaultTextStyle(
                   duration: const Duration(milliseconds: 150),
                   style: TextStyle(
-                    color:
-                        isSelected
-                            ? BreathingScreenState.kInk
-                            : BreathingScreenState.kSubInk.withValues(
-                              alpha: 0.55,
-                            ),
+                    color: isSelected
+                        ? BreathingScreenState.kInk
+                        : BreathingScreenState.kSubInk.withValues(alpha: 0.55),
                     fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
                     fontSize: isSelected ? 18 : 16,
                   ),

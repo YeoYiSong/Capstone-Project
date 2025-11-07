@@ -45,5 +45,16 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+
+	<!-- 🔽 新增：允許 HTTP（開發用） -->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+	  <key>NSAllowsArbitraryLoads</key>
+	  <true/>
+	</dict>
+
+	<!-- 🔽 新增：區網使用說明（若系統彈窗會顯示這段字） -->
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>需要連線到同一區網的開發後端以提供服務。</string>
 </dict>
 </plist>

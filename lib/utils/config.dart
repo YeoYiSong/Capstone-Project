@@ -4,7 +4,7 @@ import 'package:flutter/foundation.dart'
 const int kPort = 5000;
 
 /// 你的 Windows IPv4（同一個 Wi-Fi/熱點）
-const String kPcIp = '192.168.137.246'; //10.107.38.191
+const String kPcIp = '192.168.123.37'; //10.107.38.191
 
 /// Android：真機測試用區網；模擬器改 false 走 10.0.2.2
 const bool kAndroidUseLan = true;

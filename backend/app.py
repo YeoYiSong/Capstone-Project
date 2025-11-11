@@ -166,7 +166,7 @@ def save_diary_entry():
 
     # 映射情緒
     emotion_map = {
-        '快樂': 'joy', 'joy': 'joy',
+        '喜悅': 'joy', 'joy': 'joy',
         '悲傷': 'sadness', 'sadness': 'sadness',
         '憤怒': 'anger', 'anger': 'anger',
         '積極': 'positive', 'positive': 'positive',
@@ -314,7 +314,7 @@ def get_diary_entries(date):
             entry['entry_date'] = entry['create_at'].date().isoformat()
             entry['entry_time'] = entry['create_at'].strftime('%H:%M:%S')
             entry['emotions'] = [
-                {'emotion': '快樂' if not entry['is_english'] else 'joy', 'intensity': float(entry['joy'])},
+                {'emotion': '喜悅' if not entry['is_english'] else 'joy', 'intensity': float(entry['joy'])},
                 {'emotion': '悲傷' if not entry['is_english'] else 'sadness', 'intensity': float(entry['sadness'])},
                 {'emotion': '憤怒' if not entry['is_english'] else 'anger', 'intensity': float(entry['anger'])},
                 {'emotion': '積極' if not entry['is_english'] else 'positive', 'intensity': float(entry['positive'])},
@@ -365,7 +365,7 @@ def get_all_diary_entries():
             entry['entry_date'] = entry['create_at'].date().isoformat()
             entry['entry_time'] = entry['create_at'].strftime('%H:%M:%S')
             entry['emotions'] = [
-                {'emotion': '快樂' if not entry['is_english'] else 'joy', 'intensity': float(entry['joy'])},
+                {'emotion': '喜悅' if not entry['is_english'] else 'joy', 'intensity': float(entry['joy'])},
                 {'emotion': '悲傷' if not entry['is_english'] else 'sadness', 'intensity': float(entry['sadness'])},
                 {'emotion': '憤怒' if not entry['is_english'] else 'anger', 'intensity': float(entry['anger'])},
                 {'emotion': '積極' if not entry['is_english'] else 'positive', 'intensity': float(entry['positive'])},
@@ -1766,7 +1766,7 @@ def search_diary_entries():
                 'entry_date': e['create_at'].date().isoformat() if e['create_at'] else None,
                 'entry_time': e['create_at'].strftime('%H:%M:%S') if e['create_at'] else None,
                 'emotions': [
-                    {'emotion': ('快樂' if not is_eng else 'joy'),      'intensity': float(e['joy'])},
+                    {'emotion': ('喜悅' if not is_eng else 'joy'),      'intensity': float(e['joy'])},
                     {'emotion': ('悲傷' if not is_eng else 'sadness'),   'intensity': float(e['sadness'])},
                     {'emotion': ('憤怒' if not is_eng else 'anger'),     'intensity': float(e['anger'])},
                     {'emotion': ('積極' if not is_eng else 'positive'),  'intensity': float(e['positive'])},

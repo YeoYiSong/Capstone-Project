@@ -761,8 +761,8 @@ class BreathingScreenState extends State<BreathingScreen> {
   Future<bool?> _askPlayIntroDialog() {
     final title = widget.isEnglish ? 'Play Intro?' : '要播放前言嗎？';
     final desc = widget.isEnglish
-        ? 'You can play a short intro first, then the guide, and finally brown noise until time is up.'
-        : '可以先播放簡短前言，再播放引導，最後是環境音直到時間結束。';
+        ? 'A short intro to breathing relaxation—recommended for your first session.'
+        : '這是一段介紹呼吸放鬆的前言喲~建議你第一次聽聽看~';
     final yes = widget.isEnglish ? 'Play Intro' : '播放前言';
     final no = widget.isEnglish ? 'Skip Intro' : '略過前言';
 

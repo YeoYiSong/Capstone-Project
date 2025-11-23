@@ -118,20 +118,14 @@ class RecordFeelingsScreenState extends State<RecordFeelingsScreen> {
         type: '引導',
       );
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            widget.isEnglish ? 'Breath record saved successfully!' : '呼吸記錄已儲存！',
-          ),
-        ),
-      );
+
+      // ✅ 這裡原本有「記錄成功」的 Snackbar，已移除
       // 儲存成功後直接回首頁
       Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(
-          builder:
-              (context) =>
-                  HomeScreen(username: 'User', isEnglish: widget.isEnglish),
+          builder: (context) =>
+              HomeScreen(username: 'User', isEnglish: widget.isEnglish),
         ),
         (route) => false,
       );
@@ -165,13 +159,13 @@ class RecordFeelingsScreenState extends State<RecordFeelingsScreen> {
   @override
   Widget build(BuildContext context) {
     // 第二標題英文：自然好懂，鼓勵動手記下
-    final titleText =
-        widget.isEnglish ? 'Take a moment to write it down' : '花點時間紀錄';
+    final titleText = widget.isEnglish
+        ? 'Take a moment to write it down'
+        : '花點時間紀錄';
 
-    final hintText =
-        widget.isEnglish
-            ? 'e.g.: It feels like the world has slowed with me.'
-            : 'e.g.: 我覺得整個人都慢了下來';
+    final hintText = widget.isEnglish
+        ? 'e.g.: It feels like the world has slowed with me.'
+        : 'e.g.: 我覺得整個人都慢了下來';
 
     // 把提示塞到「記錄的好處」卡片：顯示單一提示（無進度）
     final String benefitTitle = widget.isEnglish ? 'Breath tips:' : '呼吸小提醒：';
@@ -264,33 +258,34 @@ class RecordFeelingsScreenState extends State<RecordFeelingsScreen> {
               left: 20,
               right: 20,
               bottom: 20,
-              child:
-                  _isLoading
-                      ? const Center(child: CircularProgressIndicator())
-                      : SizedBox(
-                        width: double.infinity,
-                        height: 52,
-                        child: ElevatedButton(
-                          onPressed: _canSubmit ? _saveBreathRecord : null,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor:
-                                _canSubmit ? _btnEnabled : _btnDisabled,
-                            foregroundColor:
-                                _canSubmit ? Colors.white : _btnDisabledText,
-                            padding: const EdgeInsets.symmetric(
-                              vertical: 14,
-                              horizontal: 24,
-                            ),
-                            shape: const StadiumBorder(),
-                            elevation: _canSubmit ? 2 : 0,
-                            textStyle: const TextStyle(
-                              fontFamily: 'PixelFont',
-                              fontSize: 18,
-                            ),
+              child: _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : SizedBox(
+                      width: double.infinity,
+                      height: 52,
+                      child: ElevatedButton(
+                        onPressed: _canSubmit ? _saveBreathRecord : null,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: _canSubmit
+                              ? _btnEnabled
+                              : _btnDisabled,
+                          foregroundColor: _canSubmit
+                              ? Colors.white
+                              : _btnDisabledText,
+                          padding: const EdgeInsets.symmetric(
+                            vertical: 14,
+                            horizontal: 24,
                           ),
-                          child: Text(doneText),
+                          shape: const StadiumBorder(),
+                          elevation: _canSubmit ? 2 : 0,
+                          textStyle: const TextStyle(
+                            fontFamily: 'PixelFont',
+                            fontSize: 18,
+                          ),
                         ),
+                        child: Text(doneText),
                       ),
+                    ),
             ),
           ],
         ),
@@ -401,10 +396,9 @@ class _LinesPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final paint =
-        Paint()
-          ..color = color
-          ..strokeWidth = 2;
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 2;
 
     final double left = horizontalPadding;
     final double right = size.width - horizontalPadding;

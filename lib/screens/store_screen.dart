@@ -149,19 +149,18 @@ class _StoreScreenState extends State<StoreScreen> {
       final list = await apiClient.getTodayOilRecos(); // 後端傳回多筆
       if (!mounted) return;
       // 只保留必要欄位，統一 key，避免前端取值混亂
-      final normalized =
-          list.map<Map<String, dynamic>>((e) {
-            return {
-              'id': _toInt(e['oil_id']) ?? _toInt(e['id']) ?? 0,
-              'name': (e['oil'] ?? e['name'] ?? '').toString(),
-              'price': _toInt(e['price']) ?? 0,
-              'reason': (e['reason'] ?? '').toString(),
-              // 其他欄位保留給細節頁可用
-              'oil_desc': e['oil_desc'],
-              'source': e['source'],
-              'created_at': e['created_at'],
-            };
-          }).toList();
+      final normalized = list.map<Map<String, dynamic>>((e) {
+        return {
+          'id': _toInt(e['oil_id']) ?? _toInt(e['id']) ?? 0,
+          'name': (e['oil'] ?? e['name'] ?? '').toString(),
+          'price': _toInt(e['price']) ?? 0,
+          'reason': (e['reason'] ?? '').toString(),
+          // 其他欄位保留給細節頁可用
+          'oil_desc': e['oil_desc'],
+          'source': e['source'],
+          'created_at': e['created_at'],
+        };
+      }).toList();
       setState(() {
         todayRecos = normalized;
         _loadingRecos = false;
@@ -221,85 +220,72 @@ class _StoreScreenState extends State<StoreScreen> {
         ),
         iconTheme: const IconThemeData(color: kInk),
       ),
-      body:
-          isLoadingAll
-              ? const Center(child: CircularProgressIndicator(color: kInk))
-              : ValueListenableBuilder<RecommendationState>(
-                valueListenable: RecommendationManager.instance.state,
-                builder: (context, reco, _) {
-                  // 0.0~1.0；null 代表不定長動畫
-                  final double? progress = reco.progress?.clamp(0.0, 1.0);
+      body: isLoadingAll
+          ? const Center(child: CircularProgressIndicator(color: kInk))
+          : ValueListenableBuilder<RecommendationState>(
+              valueListenable: RecommendationManager.instance.state,
+              builder: (context, reco, _) {
+                // 0.0~1.0；null 代表不定長動畫
+                final double? progress = reco.progress?.clamp(0.0, 1.0);
 
-                  // 「那些你會喜歡的」：使用今天已儲存的推薦清單
-                  final List<Map<String, dynamic>> topSectionItems =
-                      todayRecos.map(_mergeWithAllInfo).toList();
+                // 「那些你會喜歡的」：使用今天已儲存的推薦清單
+                final List<Map<String, dynamic>> topSectionItems = todayRecos
+                    .map(_mergeWithAllInfo)
+                    .toList();
 
-                  return SingleChildScrollView(
-                    padding: const EdgeInsets.fromLTRB(16, 10, 16, 20),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _SectionTitle(_t('那些你會喜歡的', 'Recommended for you')),
-                        const SizedBox(height: 12),
+                return SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(16, 10, 16, 20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _SectionTitle(_t('那些你會喜歡的', 'Recommended for you')),
+                      const SizedBox(height: 12),
 
-                        // ====== 推薦區塊（支援中英）======
-                        if (topSectionItems.isNotEmpty)
-                          _buildOilGridVertical(topSectionItems)
-                        else if (_loadingRecos ||
-                            reco.status == RecoStatus.loading)
-                          _RecoLoadingCard(
-                            title: _t(
-                              '還在幫你找著推薦哦',
-                              'Finding recommendations for you…',
-                            ),
-                            subtitle: _t(
-                              '分析你的感受與精油香調中…',
-                              'Analyzing your mood and aroma profiles…',
-                            ),
-                            progress: progress,
-                            isEnglish: widget.isEnglish,
-                          )
-                        else if (reco.status == RecoStatus.notApplicable)
-                          _PendingHint(
-                            text: _t(
-                              '記錄一天的心情後，我就能推薦囉',
-                              'Log your mood for a day and I can recommend!',
-                            ),
-                            isEnglish: widget.isEnglish,
-                          )
-                        else if (reco.status == RecoStatus.error)
-                          _PendingHint(
-                            text: _t(
-                              '取得推薦時發生小問題，稍後再試看看',
-                              'We hit a small issue getting recommendations. Please try again later.',
-                            ),
-                            isEnglish: widget.isEnglish,
-                          )
-                        else
-                          const SizedBox.shrink(),
+                      // ====== 推薦區塊（支援中英）======
+                      if (topSectionItems.isNotEmpty)
+                        _buildOilGridVertical(topSectionItems)
+                      else if (_loadingRecos ||
+                          reco.status == RecoStatus.loading)
+                        _RecoLoadingCard(
+                          title: _t(
+                            '還在幫你找著推薦哦',
+                            'Finding recommendations for you…',
+                          ),
+                          subtitle: _t(
+                            '分析你的感受與精油香調中…',
+                            'Analyzing your mood and aroma profiles…',
+                          ),
+                          progress: progress,
+                          isEnglish: widget.isEnglish,
+                        )
+                      else if (reco.status == RecoStatus.notApplicable)
+                        _PendingHint(
+                          text: _t(
+                            '記錄一天的心情後，我就能推薦囉',
+                            'Log your mood for a day and I can recommend!',
+                          ),
+                          isEnglish: widget.isEnglish,
+                        )
+                      else if (reco.status == RecoStatus.error)
+                        _PendingHint(
+                          text: _t(
+                            '取得推薦時發生小問題，稍後再試看看',
+                            'We hit a small issue getting recommendations. Please try again later.',
+                          ),
+                          isEnglish: widget.isEnglish,
+                        )
+                      else
+                        const SizedBox.shrink(),
 
-                        const SizedBox(height: 22),
-                        _SectionTitle(_t('也許你也會喜歡', 'You might also like')),
-                        const SizedBox(height: 12),
-                        _buildOilGridVertical(allOils),
-                      ],
-                    ),
-                  );
-                },
-              ),
-      bottomNavigationBar: BottomNavigationBar(
-        backgroundColor: kBg,
-        elevation: 0,
-        showSelectedLabels: false,
-        showUnselectedLabels: false,
-        selectedItemColor: kInk,
-        unselectedItemColor: kSubInk.withValues(alpha: 0.55),
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: ''),
-          BottomNavigationBarItem(icon: Icon(Icons.local_florist), label: ''),
-          BottomNavigationBarItem(icon: Icon(Icons.tune), label: ''),
-        ],
-      ),
+                      const SizedBox(height: 22),
+                      _SectionTitle(_t('也許你也會喜歡', 'You might also like')),
+                      const SizedBox(height: 12),
+                      _buildOilGridVertical(allOils),
+                    ],
+                  ),
+                );
+              },
+            ),
     );
   }
 
@@ -347,10 +333,9 @@ class _StoreScreenState extends State<StoreScreen> {
         final int price = _toInt(oil['price']) ?? 250;
 
         // 若已清過素材，改成 'assets/oils_clean/$id.png'
-        final String imageAsset =
-            (id != null && id > 0)
-                ? 'assets/oils/$id.jpg'
-                : 'assets/oils/placeholder.jpg';
+        final String imageAsset = (id != null && id > 0)
+            ? 'assets/oils/$id.jpg'
+            : 'assets/oils/placeholder.jpg';
 
         return InkWell(
           borderRadius: BorderRadius.circular(22),
@@ -358,11 +343,10 @@ class _StoreScreenState extends State<StoreScreen> {
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder:
-                    (_) => OilDetailScreen(
-                      oil: oil,
-                      isEnglish: widget.isEnglish, // ✅ 跟著設定帶進詳細頁
-                    ),
+                builder: (_) => OilDetailScreen(
+                  oil: oil,
+                  isEnglish: widget.isEnglish, // ✅ 跟著設定帶進詳細頁
+                ),
               ),
             );
           },
@@ -383,11 +367,8 @@ class _StoreScreenState extends State<StoreScreen> {
                     child: Image.asset(
                       imageAsset,
                       fit: BoxFit.contain,
-                      errorBuilder:
-                          (_, _, _) => const Icon(
-                            Icons.image_not_supported,
-                            color: kSubInk,
-                          ),
+                      errorBuilder: (_, _, _) =>
+                          const Icon(Icons.image_not_supported, color: kSubInk),
                     ),
                   ),
                 ),

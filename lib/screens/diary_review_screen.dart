@@ -376,7 +376,15 @@ class DiaryReviewScreenState extends State<DiaryReviewScreen>
       appBar: AppBar(
         backgroundColor: kBg,
         elevation: 0,
-        automaticallyImplyLeading: false, // ← 移除左上角返回與其功能
+        automaticallyImplyLeading: false, // 我們自己放客製箭頭
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: kInk),
+          tooltip: widget.isEnglish ? 'Back to Home' : '回到主畫面',
+          onPressed: () {
+            // ✅ 功能與下方「回到主畫面」按鈕一致
+            Navigator.popUntil(context, (route) => route.isFirst);
+          },
+        ),
         title: Text(widget.isEnglish ? 'Diary Review' : '本子回顧'),
         titleTextStyle: const TextStyle(
           color: kInk,

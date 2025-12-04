@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // 👈 新增：用來鎖定螢幕方向
 import 'package:firebase_core/firebase_core.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
@@ -19,6 +20,13 @@ import '/utils/api_client.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // 👇 全 app 鎖定為「直式」顯示（只允許 portraitUp）
+  await SystemChrome.setPreferredOrientations([
+    DeviceOrientation.portraitUp,
+    // 如果你想允許倒過來直式（手機顛倒）可以再加：
+    // DeviceOrientation.portraitDown,
+  ]);
 
   // 初始化 Facebook Auth（僅限 Web）
   if (kIsWeb) {
@@ -89,24 +97,22 @@ class _Smaily2AppState extends State<Smaily2App> {
         '/': (context) => const StartScreen(),
         '/login': (context) => LoginScreen(isEnglish: _isEnglish),
         '/register': (context) => RegisterScreen(isEnglish: _isEnglish),
-        '/home':
-            (context) => HomeScreen(username: 'jiuke', isEnglish: _isEnglish),
+        '/home': (context) =>
+            HomeScreen(username: 'jiuke', isEnglish: _isEnglish),
         '/diary': (context) => DiaryScreen(isEnglish: _isEnglish),
         '/chatbot': (context) => ChatbotScreen(isEnglish: _isEnglish),
         '/breathing': (context) => BreathingScreen(isEnglish: _isEnglish),
-        '/settings':
-            (context) => SettingsScreen(
-              isEnglish: _isEnglish,
-              onLanguageChanged: _toggleLanguage,
-              isDiaryLocked: _isDiaryLocked,
-              onDiaryLockChanged: _toggleDiaryLock,
-            ),
-        '/diary_review':
-            (context) => DiaryReviewScreen(
-              isDiaryLocked: _isDiaryLocked,
-              diaryPassword: _diaryPassword,
-              isEnglish: _isEnglish,
-            ),
+        '/settings': (context) => SettingsScreen(
+          isEnglish: _isEnglish,
+          onLanguageChanged: _toggleLanguage,
+          isDiaryLocked: _isDiaryLocked,
+          onDiaryLockChanged: _toggleDiaryLock,
+        ),
+        '/diary_review': (context) => DiaryReviewScreen(
+          isDiaryLocked: _isDiaryLocked,
+          diaryPassword: _diaryPassword,
+          isEnglish: _isEnglish,
+        ),
         '/store': (context) => StoreScreen(isEnglish: _isEnglish),
         '/scenario': (context) => ScenarioModeScreen(isEnglish: _isEnglish),
       },

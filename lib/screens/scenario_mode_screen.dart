@@ -95,12 +95,9 @@ class _ScenarioModeScreenState extends State<ScenarioModeScreen>
   Future<void> _loadFavorites() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
-      musicList =
-          musicList
-              .map(
-                (m) => {...m, 'liked': prefs.getBool(m['title']) ?? m['liked']},
-              )
-              .toList();
+      musicList = musicList
+          .map((m) => {...m, 'liked': prefs.getBool(m['title']) ?? m['liked']})
+          .toList();
       _sortMusicList();
     });
   }
@@ -111,8 +108,8 @@ class _ScenarioModeScreenState extends State<ScenarioModeScreen>
     // 記住目前播放的曲目檔案，避免排序後 currentIndex 跳走
     final String? playingFile =
         (currentIndex >= 0 && currentIndex < musicList.length)
-            ? musicList[currentIndex]['file'] as String
-            : null;
+        ? musicList[currentIndex]['file'] as String
+        : null;
 
     final i = _indexByFile(file);
     if (i < 0) return;
@@ -185,7 +182,7 @@ class _ScenarioModeScreenState extends State<ScenarioModeScreen>
         elevation: 0,
         foregroundColor: kInk,
         title: Text(
-          widget.isEnglish ? 'Scenario Mode' : '情景模式',
+          widget.isEnglish ? 'Scenario Mode' : '情境模式',
           style: t.textTheme.titleLarge?.copyWith(
             color: kInk,
             fontWeight: FontWeight.w800,
@@ -262,14 +259,12 @@ class _ScenarioModeScreenState extends State<ScenarioModeScreen>
                         children: [
                           Expanded(
                             child: _pillButton(
-                              icon:
-                                  currentLiked
-                                      ? Icons.favorite
-                                      : Icons.favorite_border,
-                              label:
-                                  widget.isEnglish
-                                      ? (currentLiked ? 'Liked' : 'Like')
-                                      : (currentLiked ? '已收藏' : '收藏'),
+                              icon: currentLiked
+                                  ? Icons.favorite
+                                  : Icons.favorite_border,
+                              label: widget.isEnglish
+                                  ? (currentLiked ? 'Liked' : 'Like')
+                                  : (currentLiked ? '已收藏' : '收藏'),
                               filled: currentLiked,
                               onTap: () => _toggleFavoriteByFile(currentFile),
                             ),
@@ -277,14 +272,12 @@ class _ScenarioModeScreenState extends State<ScenarioModeScreen>
                           const SizedBox(width: 10),
                           Expanded(
                             child: _pillButton(
-                              icon:
-                                  isPlaying
-                                      ? Icons.pause_rounded
-                                      : Icons.play_arrow_rounded,
-                              label:
-                                  widget.isEnglish
-                                      ? (isPlaying ? 'Pause' : 'Play')
-                                      : (isPlaying ? '暫停' : '播放'),
+                              icon: isPlaying
+                                  ? Icons.pause_rounded
+                                  : Icons.play_arrow_rounded,
+                              label: widget.isEnglish
+                                  ? (isPlaying ? 'Pause' : 'Play')
+                                  : (isPlaying ? '暫停' : '播放'),
                               onTap: () => _playMusic(currentIndex),
                             ),
                           ),
@@ -295,9 +288,7 @@ class _ScenarioModeScreenState extends State<ScenarioModeScreen>
                               label: widget.isEnglish ? 'List' : '清單',
                               onTap: () async {
                                 // 傳回 file，而不是 index，避免排序影響
-                                final resultFile = await showModalBottomSheet<
-                                  String
-                                >(
+                                final resultFile = await showModalBottomSheet<String>(
                                   context: context,
                                   backgroundColor: Colors.white.withValues(
                                     alpha: 0.92,
@@ -317,9 +308,8 @@ class _ScenarioModeScreenState extends State<ScenarioModeScreen>
                                             vertical: 12,
                                           ),
                                           itemCount: localList.length,
-                                          separatorBuilder:
-                                              (_, _) =>
-                                                  const Divider(height: 1),
+                                          separatorBuilder: (_, _) =>
+                                              const Divider(height: 1),
                                           itemBuilder: (context, i) {
                                             final file = localList[i]['file'];
                                             final liked =
@@ -333,13 +323,12 @@ class _ScenarioModeScreenState extends State<ScenarioModeScreen>
                                                   liked
                                                       ? Icons.favorite
                                                       : Icons
-                                                          .favorite_border_rounded,
-                                                  color:
-                                                      liked
-                                                          ? kAccent
-                                                          : kSubInk.withValues(
-                                                            alpha: 0.6,
-                                                          ),
+                                                            .favorite_border_rounded,
+                                                  color: liked
+                                                      ? kAccent
+                                                      : kSubInk.withValues(
+                                                          alpha: 0.6,
+                                                        ),
                                                 ),
                                                 onPressed: () async {
                                                   await _toggleFavoriteByFile(
@@ -348,14 +337,11 @@ class _ScenarioModeScreenState extends State<ScenarioModeScreen>
                                                   // 更新底單畫面
                                                   sbSet(() {});
                                                 },
-                                                tooltip:
-                                                    widget.isEnglish
-                                                        ? (liked
-                                                            ? 'Unlike'
-                                                            : 'Like')
-                                                        : (liked
-                                                            ? '取消收藏'
-                                                            : '收藏'),
+                                                tooltip: widget.isEnglish
+                                                    ? (liked
+                                                          ? 'Unlike'
+                                                          : 'Like')
+                                                    : (liked ? '取消收藏' : '收藏'),
                                               ),
                                               title: Text(
                                                 widget.isEnglish
@@ -363,10 +349,9 @@ class _ScenarioModeScreenState extends State<ScenarioModeScreen>
                                                     : localList[i]['title'],
                                                 style: TextStyle(
                                                   color: kInk,
-                                                  fontWeight:
-                                                      isCurrent
-                                                          ? FontWeight.w800
-                                                          : FontWeight.w600,
+                                                  fontWeight: isCurrent
+                                                      ? FontWeight.w800
+                                                      : FontWeight.w600,
                                                 ),
                                               ),
                                               trailing: IconButton(
@@ -426,109 +411,103 @@ class _ScenarioModeScreenState extends State<ScenarioModeScreen>
                     duration: const Duration(milliseconds: 360),
                     switchInCurve: Curves.easeOutCubic,
                     switchOutCurve: Curves.easeInCubic,
-                    child:
-                        isPlaying
-                            ? _AmbientPanel(
-                              key: const ValueKey('ambient'),
-                              controller: _vizCtrl,
-                              ink: kInk,
-                              subInk: kSubInk,
-                              accent: kAccent,
-                              pill: kPill,
-                              isEnglish: widget.isEnglish,
-                            )
-                            : ListView.separated(
-                              key: const ValueKey('list'),
-                              itemCount: sortedList.length,
-                              separatorBuilder:
-                                  (_, _) => const SizedBox(height: 10),
-                              itemBuilder: (context, index) {
-                                final file = sortedList[index]['file'];
-                                final liked =
-                                    sortedList[index]['liked'] == true;
-                                final isCurrent =
-                                    file == sortedList[currentIndex]['file'];
-                                return _softCard(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                    vertical: 10,
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      _circleIcon(
-                                        isCurrent
-                                            ? Icons.graphic_eq_rounded
-                                            : Icons.play_arrow_rounded,
-                                        bg:
+                    child: isPlaying
+                        ? _AmbientPanel(
+                            key: const ValueKey('ambient'),
+                            controller: _vizCtrl,
+                            ink: kInk,
+                            subInk: kSubInk,
+                            accent: kAccent,
+                            pill: kPill,
+                            isEnglish: widget.isEnglish,
+                          )
+                        : ListView.separated(
+                            key: const ValueKey('list'),
+                            itemCount: sortedList.length,
+                            separatorBuilder: (_, _) =>
+                                const SizedBox(height: 10),
+                            itemBuilder: (context, index) {
+                              final file = sortedList[index]['file'];
+                              final liked = sortedList[index]['liked'] == true;
+                              final isCurrent =
+                                  file == sortedList[currentIndex]['file'];
+                              return _softCard(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 10,
+                                ),
+                                child: Row(
+                                  children: [
+                                    _circleIcon(
+                                      isCurrent
+                                          ? Icons.graphic_eq_rounded
+                                          : Icons.play_arrow_rounded,
+                                      bg: isCurrent
+                                          ? kAccent.withValues(alpha: 0.20)
+                                          : kPill,
+                                      fg: isCurrent ? kInk : kSubInk,
+                                      onTap: () => _playMusicByFile(file),
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            widget.isEnglish
+                                                ? sortedList[index]['englishTitle']
+                                                : sortedList[index]['title'],
+                                            maxLines: 2,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: t.textTheme.titleSmall
+                                                ?.copyWith(
+                                                  color: kInk,
+                                                  fontWeight: isCurrent
+                                                      ? FontWeight.w900
+                                                      : FontWeight.w700,
+                                                ),
+                                          ),
+                                          const SizedBox(height: 2),
+                                          Text(
                                             isCurrent
-                                                ? kAccent.withValues(
-                                                  alpha: 0.20,
-                                                )
-                                                : kPill,
-                                        fg: isCurrent ? kInk : kSubInk,
-                                        onTap: () => _playMusicByFile(file),
-                                      ),
-                                      const SizedBox(width: 10),
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              widget.isEnglish
-                                                  ? sortedList[index]['englishTitle']
-                                                  : sortedList[index]['title'],
-                                              maxLines: 2,
-                                              overflow: TextOverflow.ellipsis,
-                                              style: t.textTheme.titleSmall
-                                                  ?.copyWith(
-                                                    color: kInk,
-                                                    fontWeight:
-                                                        isCurrent
-                                                            ? FontWeight.w900
-                                                            : FontWeight.w700,
-                                                  ),
-                                            ),
-                                            const SizedBox(height: 2),
-                                            Text(
-                                              isCurrent
-                                                  ? (widget.isEnglish
+                                                ? (widget.isEnglish
                                                       ? 'Playing'
                                                       : '播放中')
-                                                  : (widget.isEnglish
+                                                : (widget.isEnglish
                                                       ? 'Tap to play'
                                                       : '點擊播放'),
-                                              style: t.textTheme.bodySmall
-                                                  ?.copyWith(
-                                                    color: kSubInk.withValues(
-                                                      alpha:
-                                                          isCurrent ? 0.9 : 0.7,
-                                                    ),
-                                                    fontWeight: FontWeight.w600,
+                                            style: t.textTheme.bodySmall
+                                                ?.copyWith(
+                                                  color: kSubInk.withValues(
+                                                    alpha: isCurrent
+                                                        ? 0.9
+                                                        : 0.7,
                                                   ),
-                                            ),
-                                          ],
-                                        ),
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                          ),
+                                        ],
                                       ),
-                                      IconButton(
-                                        icon: Icon(
-                                          liked
-                                              ? Icons.favorite
-                                              : Icons.favorite_border_rounded,
-                                          color: liked ? kAccent : kSubInk,
-                                        ),
-                                        onPressed:
-                                            () => _toggleFavoriteByFile(file),
-                                        tooltip:
-                                            widget.isEnglish
-                                                ? (liked ? 'Unlike' : 'Like')
-                                                : (liked ? '取消收藏' : '收藏'),
+                                    ),
+                                    IconButton(
+                                      icon: Icon(
+                                        liked
+                                            ? Icons.favorite
+                                            : Icons.favorite_border_rounded,
+                                        color: liked ? kAccent : kSubInk,
                                       ),
-                                    ],
-                                  ),
-                                );
-                              },
-                            ),
+                                      onPressed: () =>
+                                          _toggleFavoriteByFile(file),
+                                      tooltip: widget.isEnglish
+                                          ? (liked ? 'Unlike' : 'Like')
+                                          : (liked ? '取消收藏' : '收藏'),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
                   ),
                 ),
               ],
@@ -639,8 +618,9 @@ class _ClockPanel extends StatelessWidget {
 
         final double w = (c.maxWidth - pad * 2);
         final double h = (c.maxHeight - textReserve - pad);
-        final double maxSquare =
-            w.isFinite && h.isFinite ? (w < 0 || h < 0 ? 0.0 : min(w, h)) : 0.0;
+        final double maxSquare = w.isFinite && h.isFinite
+            ? (w < 0 || h < 0 ? 0.0 : min(w, h))
+            : 0.0;
 
         return Column(
           children: [
@@ -695,30 +675,26 @@ class CalmingClockPainter extends CustomPainter {
     final center = Offset(size.width / 2, size.height / 2);
     final radius = min(size.width, size.height) / 2 - 8;
 
-    final dialPaint =
-        Paint()
-          ..color = dialColor
-          ..style = PaintingStyle.fill;
+    final dialPaint = Paint()
+      ..color = dialColor
+      ..style = PaintingStyle.fill;
     canvas.drawCircle(center, radius, dialPaint);
 
-    final ringPaint =
-        Paint()
-          ..color = ringColor
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 10
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8);
+    final ringPaint = Paint()
+      ..color = ringColor
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 10
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8);
     canvas.drawCircle(center, radius - 2, ringPaint);
 
-    final bigTick =
-        Paint()
-          ..color = tickColor
-          ..strokeWidth = 2.4
-          ..strokeCap = StrokeCap.round;
-    final smallTick =
-        Paint()
-          ..color = tickColor.withValues(alpha: 0.70)
-          ..strokeWidth = 1.4
-          ..strokeCap = StrokeCap.round;
+    final bigTick = Paint()
+      ..color = tickColor
+      ..strokeWidth = 2.4
+      ..strokeCap = StrokeCap.round;
+    final smallTick = Paint()
+      ..color = tickColor.withValues(alpha: 0.70)
+      ..strokeWidth = 1.4
+      ..strokeCap = StrokeCap.round;
 
     for (int i = 0; i < 60; i++) {
       final double angle = (pi / 30) * i;
@@ -738,11 +714,10 @@ class CalmingClockPainter extends CustomPainter {
     final minuteAngle = (dateTime.minute + dateTime.second / 60) * 6 * pi / 180;
     final secondAngle = dateTime.second * 6 * pi / 180;
 
-    final handPaint =
-        Paint()
-          ..color = hourMinuteColor
-          ..strokeCap = StrokeCap.round
-          ..strokeWidth = 6;
+    final handPaint = Paint()
+      ..color = hourMinuteColor
+      ..strokeCap = StrokeCap.round
+      ..strokeWidth = 6;
 
     final hourHand = Offset(
       center.dx + radius * 0.52 * cos(hourAngle - pi / 2),
@@ -756,11 +731,10 @@ class CalmingClockPainter extends CustomPainter {
     canvas.drawLine(center, hourHand, handPaint);
     canvas.drawLine(center, minuteHand, handPaint..strokeWidth = 4);
 
-    final secPaint =
-        Paint()
-          ..color = secondColor
-          ..strokeWidth = 2
-          ..strokeCap = StrokeCap.round;
+    final secPaint = Paint()
+      ..color = secondColor
+      ..strokeWidth = 2
+      ..strokeCap = StrokeCap.round;
     final secondHand = Offset(
       center.dx + radius * 0.80 * cos(secondAngle - pi / 2),
       center.dy + radius * 0.80 * sin(secondAngle - pi / 2),
@@ -918,10 +892,9 @@ class _WavesPainter extends CustomPainter {
       required double yOffset,
       required Color color,
     }) {
-      final paint =
-          Paint()
-            ..color = color
-            ..style = PaintingStyle.fill;
+      final paint = Paint()
+        ..color = color
+        ..style = PaintingStyle.fill;
       final path = Path()..moveTo(0, h);
 
       for (double x = 0; x <= w; x += 2) {

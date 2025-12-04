@@ -72,9 +72,9 @@ class RecordFeelingsScreenState extends State<RecordFeelingsScreen> {
     '🚨 Many of us over-breathe—not a good thing. Over-breathing disrupts your rhythm; slowing down a little is the key.',
   ];
 
-  // —— 切換提示索引（＋號按鈕用）——
   int _tipIndex = 0;
   List<String> get _tips => widget.isEnglish ? _tipsEn : _tipsZh;
+
   void _nextTip() {
     setState(() {
       _tipIndex = (_tipIndex + 1) % _tips.length;
@@ -119,8 +119,6 @@ class RecordFeelingsScreenState extends State<RecordFeelingsScreen> {
       );
       if (!mounted) return;
 
-      // ✅ 這裡原本有「記錄成功」的 Snackbar，已移除
-      // 儲存成功後直接回首頁
       Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(
@@ -158,7 +156,6 @@ class RecordFeelingsScreenState extends State<RecordFeelingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // 第二標題英文：自然好懂，鼓勵動手記下
     final titleText = widget.isEnglish
         ? 'Take a moment to write it down'
         : '花點時間紀錄';
@@ -167,7 +164,6 @@ class RecordFeelingsScreenState extends State<RecordFeelingsScreen> {
         ? 'e.g.: It feels like the world has slowed with me.'
         : 'e.g.: 我覺得整個人都慢了下來';
 
-    // 把提示塞到「記錄的好處」卡片：顯示單一提示（無進度）
     final String benefitTitle = widget.isEnglish ? 'Breath tips:' : '呼吸小提醒：';
     final String benefitBody = '• ${_tips[_tipIndex]}';
 
@@ -175,7 +171,6 @@ class RecordFeelingsScreenState extends State<RecordFeelingsScreen> {
 
     return Scaffold(
       backgroundColor: _bg,
-      // AppBar：帶返回鍵（與你的其他頁一致）
       appBar: AppBar(
         backgroundColor: _bg,
         elevation: 0,
@@ -203,13 +198,11 @@ class RecordFeelingsScreenState extends State<RecordFeelingsScreen> {
       body: SafeArea(
         child: Stack(
           children: [
-            // 內容可上下滑動
             SingleChildScrollView(
               padding: const EdgeInsets.fromLTRB(20, 16, 20, 140),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // 標題
                   Text(
                     titleText,
                     style: const TextStyle(
@@ -220,7 +213,6 @@ class RecordFeelingsScreenState extends State<RecordFeelingsScreen> {
                   ),
                   const SizedBox(height: 28),
 
-                  // 4 條線輸入區（文字永遠在「線上面」）
                   _LinedTextarea(
                     controller: _feelingsController,
                     focusNode: _feelingsFocusNode,
@@ -230,16 +222,14 @@ class RecordFeelingsScreenState extends State<RecordFeelingsScreen> {
 
                   const SizedBox(height: 24),
 
-                  // 底部卡片：呼吸小提醒（原「記錄的好處」位置）
                   _BenefitCard(
                     title: benefitTitle,
                     body: benefitBody,
-                    onAddPressed: _nextTip, // ＋號按鈕：切換下一則
+                    onAddPressed: _nextTip,
                   ),
 
                   const SizedBox(height: 16),
 
-                  // 滿版葉子插畫（fitWidth）
                   SizedBox(
                     width: double.infinity,
                     child: Image.asset(
@@ -253,7 +243,6 @@ class RecordFeelingsScreenState extends State<RecordFeelingsScreen> {
               ),
             ),
 
-            // 底部單一按鈕「完成」（儲存並回首頁）
             Positioned(
               left: 20,
               right: 20,
@@ -295,7 +284,6 @@ class RecordFeelingsScreenState extends State<RecordFeelingsScreen> {
 }
 
 /// —— 有 4 條線的輸入框，第一行顯示提示 ——
-/// 用 TextPainter 量測行高，讓每條線畫在「文字下一點」，不會穿過字。
 class _LinedTextarea extends StatelessWidget {
   final TextEditingController controller;
   final FocusNode focusNode;
@@ -311,48 +299,58 @@ class _LinedTextarea extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 字體加大、加深
     const inputStyle = TextStyle(
       fontFamily: 'PixelFont',
       fontSize: 19,
-      height: 1.35,
+      height: 1.2,
       color: RecordFeelingsScreenState._title,
       fontWeight: FontWeight.w700,
     );
 
-    // 用來量測單行高度
+    const int lineCount = 4;
+
     final tp = TextPainter(
       text: const TextSpan(text: 'A', style: inputStyle),
       textDirection: TextDirection.ltr,
     )..layout();
-    final lineHeight = tp.preferredLineHeight;
 
-    // 線的位置與間距：跟著字高自動推
-    const topPad = 8.0; // TextField 內距上
-    final firstLineTop = topPad + lineHeight + 8;
-    final gap = lineHeight + 16; // 間距拉鬆
-    final totalHeight = firstLineTop + (3 * gap) + 8;
+    final double lineHeight = tp.preferredLineHeight;
+    final double baseline = tp.computeDistanceToActualBaseline(
+      TextBaseline.alphabetic,
+    );
+
+    const double topPad = 8.0;
+    const double bottomPad = 8.0;
+
+    const double baselineOffset = 3.0; // ✅ 把線往下移一點（安卓實機看起來會剛好）
+
+    final double firstBaselineY = topPad + baseline + baselineOffset;
+
+    final double totalHeight =
+        topPad +
+        baseline +
+        baselineOffset +
+        (lineCount - 1) * lineHeight +
+        bottomPad;
 
     return SizedBox(
       height: totalHeight,
-      width: MediaQuery.of(context).size.width - 40, // 外側 20+20
+      width: MediaQuery.of(context).size.width - 40,
       child: Stack(
         children: [
-          // 底層：四條線
           Positioned.fill(
             child: CustomPaint(
               painter: _LinesPainter(
                 color: lineColor.withValues(alpha: 0.85),
-                firstLineTop: firstLineTop,
-                gap: gap,
-                count: 4,
+                firstBaselineY: firstBaselineY,
+                lineHeight: lineHeight,
+                count: lineCount,
                 horizontalPadding: 4,
               ),
             ),
           ),
-          // 上層：文字輸入（永遠在「線的上面」）
           Padding(
-            padding: const EdgeInsets.fromLTRB(4, topPad, 4, 8),
+            padding: const EdgeInsets.fromLTRB(4, topPad, 4, bottomPad),
             child: TextField(
               controller: controller,
               focusNode: focusNode,
@@ -370,7 +368,7 @@ class _LinedTextarea extends StatelessWidget {
                 contentPadding: EdgeInsets.zero,
               ),
               keyboardType: TextInputType.multiline,
-              maxLines: 4, // 正好對齊 4 條線
+              maxLines: lineCount,
             ),
           ),
         ],
@@ -381,15 +379,15 @@ class _LinedTextarea extends StatelessWidget {
 
 class _LinesPainter extends CustomPainter {
   final Color color;
-  final double firstLineTop;
-  final double gap;
+  final double firstBaselineY;
+  final double lineHeight;
   final int count;
   final double horizontalPadding;
 
   _LinesPainter({
     required this.color,
-    required this.firstLineTop,
-    required this.gap,
+    required this.firstBaselineY,
+    required this.lineHeight,
     required this.count,
     required this.horizontalPadding,
   });
@@ -404,7 +402,7 @@ class _LinesPainter extends CustomPainter {
     final double right = size.width - horizontalPadding;
 
     for (int i = 0; i < count; i++) {
-      final y = firstLineTop + i * gap;
+      final double y = firstBaselineY + i * lineHeight;
       canvas.drawLine(Offset(left, y), Offset(right, y), paint);
     }
   }
@@ -412,14 +410,13 @@ class _LinesPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _LinesPainter old) {
     return old.color != color ||
-        old.firstLineTop != firstLineTop ||
-        old.gap != gap ||
+        old.firstBaselineY != firstBaselineY ||
+        old.lineHeight != lineHeight ||
         old.count != count ||
         old.horizontalPadding != horizontalPadding;
   }
 }
 
-/// —— 底部「記錄的好處」卡片＋右側加號（＋＝切換下一則） ——
 class _BenefitCard extends StatelessWidget {
   final String title;
   final String body;
@@ -450,7 +447,6 @@ class _BenefitCard extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 文案
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -479,7 +475,6 @@ class _BenefitCard extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 8),
-          // 右側＋號：切下一則
           InkWell(
             onTap: onAddPressed,
             borderRadius: BorderRadius.circular(10),
